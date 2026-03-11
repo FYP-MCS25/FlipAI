@@ -59,9 +59,10 @@ FlipAI helps users understand **actionable changes** to input data that would fl
 
 - **Backend**: Django 5.0 with Django REST Framework
 - **Database**: PostgreSQL 15
-- **Python**: 3.13
+- **Python**: 3.12 (recommended)
 - **ML Libraries**: scikit-learn, XGBoost, LightGBM, NumPy, Pandas
 - **Explainability**: SHAP (SHapley Additive exPlanations)
+- **Counterfactuals**: DiCE-ML (Diverse Counterfactual Explanations)
 - **API Docs**: Swagger/ReDoc (drf-yasg)
 - **Testing**: pytest, pytest-django
 
@@ -70,6 +71,14 @@ FlipAI helps users understand **actionable changes** to input data that would fl
 ## 🧪 Development Commands
 
 ```bash
+# Train the SHAP-guided model
+python train_shap_adult.py
+
+# Generate counterfactual explanations
+python generate_counterfactuals.py              # random sample
+python generate_counterfactuals.py --custom      # interactive input
+python generate_counterfactuals.py --index 42    # specific sample
+
 # Run tests
 pytest
 
@@ -95,7 +104,7 @@ python3 manage.py createsuperuser
 
 1. Read **[CONTRIBUTING.md](CONTRIBUTING.md)** for git workflow
 2. Check **[DEVELOPMENT.md](DEVELOPMENT.md)** for current tasks
-3. Create feature branches from `main`
+3. Create feature branches from `dev`
 4. Submit pull requests for review
 5. Run tests before pushing
 

@@ -1,7 +1,7 @@
 # FlipAI Complete Setup Guide
 
-**Last Updated:** December 23, 2025  
-**Python Version:** 3.13  
+**Last Updated:** March 11, 2026  
+**Python Version:** 3.12 (recommended)  
 **Django Version:** 5.0
 
 This comprehensive guide covers the complete setup process for the FlipAI development environment, including all installations and configurations that were performed.
@@ -14,20 +14,23 @@ This comprehensive guide covers the complete setup process for the FlipAI develo
 4. [Project Setup](#project-setup)
 5. [Database Configuration](#database-configuration)
 6. [Running the Application](#running-the-application)
-7. [Troubleshooting](#troubleshooting)
+7. [ML Pipeline — Training & Counterfactuals](#ml-pipeline--training--counterfactuals)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## System Requirements
 
 - **Operating System:** macOS or Windows 10/11
-- **Python:** 3.10+ (3.13 recommended)
+- **Python:** 3.10+ (**3.12 recommended** — see [Python 3.13 note](#issue-8-shap--numba-incompatibility-with-python-313))
 - **PostgreSQL:** 14+
 - **Package Manager:** 
   - macOS: Homebrew
   - Windows: Chocolatey (optional) or manual installers
 - **RAM:** 8GB minimum, 16GB recommended
 - **Disk Space:** 5GB minimum for dependencies and environments
+
+> ⚠️ **Why Python 3.12?** SHAP depends on `numba`, which has compatibility issues with Python 3.13. Python 3.12 is the most stable choice for the full ML stack (SHAP + DiCE + XGBoost).
 
 ---
 
@@ -45,18 +48,18 @@ python3 --version
 python --version
 ```
 
-### Install Python 3.13 (if needed)
+### Install Python 3.12 (Recommended)
 
 #### macOS
 
-If your Python version is below 3.10, upgrade using Homebrew:
+If your Python version is below 3.10, or you have 3.13 (which has ML library issues), install 3.12:
 
 ```bash
-# Install Python 3.13
-brew install python@3.13
+# Install Python 3.12
+brew install python@3.12
 
 # Verify installation
-python3.13 --version
+python3.12 --version
 ```
 
 **Alternative: Using pyenv (Recommended for macOS)**
@@ -67,20 +70,20 @@ pyenv allows you to manage multiple Python versions easily:
 # Install pyenv
 brew install pyenv
 
-# Install Python 3.13
-pyenv install 3.13.0
+# Install Python 3.12
+pyenv install 3.12.3
 
 # Set as local version for this project
 cd /path/to/FlipAI
-pyenv local 3.13.0
+pyenv local 3.12.3
 
 # Verify
-python --version  # Should show 3.13.0
+python --version  # Should show 3.12.3
 ```
 
 #### Windows
 
-1. Download Python 3.13 from https://www.python.org/downloads/
+1. Download **Python 3.12** from https://www.python.org/downloads/release/python-3123/
 2. Run the installer
 3. ✅ **IMPORTANT:** Check "Add Python to PATH" during installation
 4. Click "Install Now"
@@ -191,10 +194,10 @@ cd C:\path\to\FlipAI
 
 **macOS/Linux:**
 ```bash
-# Create virtual environment with Python 3.13
-python3.13 -m venv venv
+# Create virtual environment with Python 3.12
+python3.12 -m venv venv
 
-# Or if Python 3.13 is your default:
+# Or if Python 3.12 is your default:
 python3 -m venv venv
 ```
 
@@ -251,9 +254,11 @@ pip install -r requirements.txt
 - Django REST Framework
 - PostgreSQL adapter (psycopg2-binary)
 - ML libraries (NumPy, Pandas, scikit-learn, XGBoost, LightGBM)
-- SHAP for explainability
+- SHAP for explainability (with numba for fast TreeSHAP)
+- DiCE-ML for counterfactual explanations
+- Matplotlib for visualisation
 - API documentation tools (drf-yasg)
-- Testing tools (pytest, pytest-django)
+- Testing tools (pytest, pytest-django, coverage)
 - Code quality tools (black, flake8)
 
 **Installation may take 5-10 minutes** depending on your internet connection.
@@ -471,6 +476,93 @@ Open your browser and visit:
 
 ---
 
+## ML Pipeline — Training & Counterfactuals
+
+FlipAI includes a complete SHAP-integrated training pipeline and DiCE counterfactual generator.
+
+### Train the SHAP-Guided Model
+
+The training script uses iterative SHAP-weighted sample reweighting on the Adult Census dataset:
+
+**macOS/Linux:**
+```bash
+source venv/bin/activate
+python train_shap_adult.py
+```
+
+**Windows:**
+```cmd
+venv\Scripts\activate.bat
+python train_shap_adult.py
+```
+
+**What it does:**
+1. Loads the Adult Census dataset from `datasets/adult/`
+2. Preprocesses data (imputation, encoding, scaling)
+3. Runs 5 rounds of SHAP-integrated training:
+   - Train XGBoost model
+   - Compute SHAP values (TreeSHAP)
+   - Calculate per-sample difficulty/alignment scores
+   - Reweight samples for next round (harder samples get more weight)
+4. Saves model and artifacts to `models/saved_models/`
+5. Generates SHAP explanation plots (summary, beeswarm, round history)
+
+**Expected output:**
+```
+  Round 1/5  accuracy = 0.8710
+  Round 2/5  accuracy = 0.8723
+  ...
+  Round 5/5  accuracy = 0.8735
+
+  Final Test Accuracy: 0.8735
+```
+
+**Saved files:**
+| File | Location | Purpose |
+|------|----------|---------|
+| `xgboost_adult.json` | `models/saved_models/` | Trained XGBoost model |
+| `preprocessing_artifacts.joblib` | `models/saved_models/` | Encoders, scaler, imputation values |
+| `shap_summary.png` | `models/saved_models/` | SHAP feature importance bar plot |
+| `shap_beeswarm.png` | `models/saved_models/` | SHAP beeswarm plot |
+| `shap_training_rounds.png` | `models/saved_models/` | Accuracy across training rounds |
+| `shap_values_sample.csv` | `models/saved_models/` | Sample SHAP values |
+
+### Generate Counterfactual Explanations (DiCE)
+
+After training, use DiCE-ML to generate counterfactual explanations that show **what changes would flip a prediction**:
+
+```bash
+# Random test sample (default: 4 counterfactuals)
+python generate_counterfactuals.py
+
+# Specific test sample by index
+python generate_counterfactuals.py --index 42
+
+# Custom interactive input
+python generate_counterfactuals.py --custom
+
+# Control number of counterfactuals
+python generate_counterfactuals.py --num-cf 5
+```
+
+**Example output:**
+```
+  ORIGINAL INPUT
+    age: 36, workclass: Private, education: HS-grad, ...
+  Prediction:   <=50K (87.6% confidence)
+
+  DiCE COUNTERFACTUALS (flipping prediction to >50K)
+
+  Counterfactual #1:
+    Changes needed (1 feature):
+      capital_gain  0 → 28,923
+    New prediction: >50K (99.4% confidence)
+```
+
+Each counterfactual answers: *"What minimal changes would flip this person's predicted income?"*
+
+---
+
 ## Troubleshooting
 
 ### Issue 1: PostgreSQL Role Does Not Exist
@@ -529,14 +621,14 @@ ERROR: Django 5.0 requires Python 3.10+
 
 **Solution (macOS):**
 ```bash
-# Install Python 3.13
-brew install python@3.13
+# Install Python 3.12 (recommended)
+brew install python@3.12
 
 # Remove old virtual environment
 rm -rf venv
 
 # Create new virtual environment
-python3.13 -m venv venv
+python3.12 -m venv venv
 
 # Activate and reinstall dependencies
 source venv/bin/activate
@@ -547,7 +639,7 @@ pip install -r requirements.txt
 
 **Solution (Windows):**
 ```cmd
-# Download and install Python 3.13 from python.org
+# Download and install Python 3.12 from python.org
 
 # Remove old virtual environment
 rmdir /s venv
@@ -626,14 +718,70 @@ venv\Scripts\Activate.ps1
 
 ---
 
-### Issue 7: Pandas/NumPy Compilation Errors with Python 3.13
+### Issue 7: Pandas/NumPy Compilation Errors
 
 **Solution:**  
-The `requirements.txt` uses flexible versioning (e.g., `pandas>=2.2.0`) to ensure compatibility with Python 3.13. If you encounter issues:
+The `requirements.txt` uses flexible versioning (e.g., `pandas>=2.2.0`). If you encounter compilation issues:
 
 ```bash
 # Update requirements to latest compatible versions
 pip install --upgrade numpy pandas scipy scikit-learn
+```
+
+---
+
+### Issue 8: SHAP / numba Incompatibility with Python 3.13
+
+**Error:**
+```
+ModuleNotFoundError: No module named 'coverage.types'
+# or
+AttributeError: module 'numba' has no attribute 'core'
+```
+
+**Cause:** SHAP depends on `numba`, which has compatibility issues with Python 3.13. The `numba` JIT compiler requires `coverage >= 7.0` for its tracer, and some versions don't fully support 3.13.
+
+**Solution:** Use **Python 3.12** (recommended):
+
+**macOS:**
+```bash
+brew install python@3.12
+rm -rf venv
+python3.12 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip setuptools
+pip install -r requirements.txt
+```
+
+**Windows:**
+```cmd
+# Download Python 3.12 from python.org and reinstall
+rmdir /s venv
+python -m venv venv
+venv\Scripts\activate.bat
+pip install --upgrade pip setuptools
+pip install -r requirements.txt
+```
+
+If you must stay on Python 3.13, ensure:
+```bash
+pip install "coverage>=7.0" "shap>=0.51.0" "numba>=0.60.0"
+```
+
+---
+
+### Issue 9: Model Not Found When Running Counterfactuals
+
+**Error:**
+```
+ERROR: Trained model not found. Run train_shap_adult.py first.
+```
+
+**Solution:** Train the model before generating counterfactuals:
+```bash
+python train_shap_adult.py
+# Then:
+python generate_counterfactuals.py
 ```
 
 ---
@@ -647,14 +795,17 @@ pip install --upgrade numpy pandas scipy scikit-learn
 | django-cors-headers | 4.3.1 | CORS handling |
 | django-environ | 0.11.2 | Environment variable management |
 | psycopg2-binary | 2.9.11 | PostgreSQL adapter |
-| numpy | 1.26.4 | Numerical computing |
-| pandas | 2.2+ | Data manipulation |
-| scikit-learn | 1.3+ | Machine learning |
-| xgboost | 2.0+ | Gradient boosting |
-| lightgbm | 4.0+ | Gradient boosting |
-| shap | 0.45+ | Model explainability |
-| scipy | 1.13+ | Scientific computing |
-| joblib | 1.3+ | Model serialization |
+| numpy | ≥1.26.0 | Numerical computing |
+| pandas | ≥2.2.0 | Data manipulation |
+| scikit-learn | ≥1.3.0 | Machine learning |
+| xgboost | ≥2.0.0 | Gradient boosting (classifier) |
+| lightgbm | ≥4.0.0 | Gradient boosting |
+| shap | ≥0.50.0 | SHAP explainability (TreeSHAP) |
+| dice-ml | ≥0.11 | DiCE counterfactual explanations |
+| matplotlib | ≥3.7.0 | Visualisation & plots |
+| scipy | ≥1.13.0 | Scientific computing |
+| joblib | ≥1.3.0 | Model serialization |
+| coverage | ≥7.0 | Test coverage (also required by numba) |
 | drf-yasg | 1.21.7 | API documentation |
 | pytest | 7.4.3 | Testing framework |
 | pytest-django | 4.7.0 | Django testing integration |
@@ -667,24 +818,38 @@ pip install --upgrade numpy pandas scipy scikit-learn
 
 Now that you have FlipAI set up:
 
-1. **Explore the Admin Panel**: http://localhost:8000/admin/
+1. **Train the SHAP-Guided Model**:
+   ```bash
+   python train_shap_adult.py
+   ```
+   - Trains XGBoost on the Adult Census dataset with SHAP-integrated sample reweighting
+   - Generates SHAP explanation plots in `models/saved_models/`
+
+2. **Generate Counterfactual Explanations**:
+   ```bash
+   python generate_counterfactuals.py --custom
+   ```
+   - Enter a person's details and see what changes would flip the prediction
+   - See [ML Pipeline](#ml-pipeline--training--counterfactuals) for full usage
+
+3. **Explore the Admin Panel**: http://localhost:8000/admin/
    - Create test datasets
    - Familiarize yourself with the data models
 
-2. **Check the API Documentation**: http://localhost:8000/swagger/
+4. **Check the API Documentation**: http://localhost:8000/swagger/
    - See all available endpoints
    - Test API calls interactively
 
-3. **Review the Architecture**: See **[DEVELOPMENT.md](DEVELOPMENT.md)**
+5. **Review the Architecture**: See **[DEVELOPMENT.md](DEVELOPMENT.md)**
    - Understand project structure
    - View implementation tasks and TODO list
 
-4. **Learn the Workflow**: See **[CONTRIBUTING.md](CONTRIBUTING.md)**
+6. **Learn the Workflow**: See **[CONTRIBUTING.md](CONTRIBUTING.md)**
    - Daily development workflow
    - Git branching strategy
    - Code style guidelines
 
-5. **Run Tests**
+7. **Run Tests**
    ```bash
    pytest
    ```
@@ -697,6 +862,7 @@ Now that you have FlipAI set up:
 - **Django REST Framework:** https://www.django-rest-framework.org/
 - **PostgreSQL Documentation:** https://www.postgresql.org/docs/
 - **SHAP Documentation:** https://shap.readthedocs.io/
+- **DiCE-ML Documentation:** https://interpret.ml/DiCE/
 - **XGBoost Documentation:** https://xgboost.readthedocs.io/
 - **LightGBM Documentation:** https://lightgbm.readthedocs.io/
 
