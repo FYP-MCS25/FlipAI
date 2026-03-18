@@ -290,9 +290,9 @@ pip install -r requirements.txt
 
 ---
 
-## Database Configuration
+## Environment Configuration
 
-### 1. Configure Environment Variables
+### 1. Backend Environment Variables (.env)
 
 Create your `.env` file from the example:
 
@@ -368,7 +368,25 @@ DB_USER=postgres
 DB_PASSWORD=your_postgres_password
 ```
 
-### 3. Create Database Migrations
+### 3. Frontend Environment Variables (.env.local)
+
+The frontend needs to know where the Django API is located. Create the `.env.local` file in the frontend directory:
+
+**macOS/Linux:**
+```bash
+cd frontend
+cp .env.example .env.local
+```
+
+**Windows:**
+```cmd
+cd frontend
+copy .env.example .env.local
+```
+
+> **Important:** `.env.local` is ignored by git (in `frontend/.gitignore`). Never commit this file or any file containing secrets to version control.
+
+### 4. Create Database Migrations
 
 **macOS/Linux:**
 ```bash
@@ -390,7 +408,7 @@ Migrations for 'predictions':
   predictions/migrations/0001_initial.py
 ```
 
-### 4. Apply Migrations
+### 5. Apply Migrations
 
 **macOS/Linux:**
 ```bash
@@ -412,7 +430,7 @@ Running migrations:
   Applying predictions.0001_initial... OK
 ```
 
-### 5. Create Superuser Account
+### 6. Create Superuser Account
 
 **macOS/Linux:**
 ```bash

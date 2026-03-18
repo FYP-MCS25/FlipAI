@@ -20,14 +20,21 @@ Complete installation guide with troubleshooting for all common issues.
 
 ## ⚡ Quick Reference
 
-### Start Development Server
+### Start Development Server (Backend)
 ```bash
 source venv/bin/activate
 python3 manage.py runserver
 ```
 
+### Start Development Server (Frontend)
+```bash
+cd frontend
+npm start
+```
+
 ### Access Points
-- **Home**: http://localhost:8000/
+- **Frontend**: http://localhost:3000/ (React dev server)
+- **Backend Home**: http://localhost:8000/
 - **Admin Panel**: http://localhost:8000/admin/
 - **API Docs (Swagger)**: http://localhost:8000/swagger/
 - **API Docs (ReDoc)**: http://localhost:8000/redoc/
@@ -57,6 +64,7 @@ FlipAI helps users understand **actionable changes** to input data that would fl
 
 ## 🛠️ Tech Stack
 
+- **Frontend**: React (in `frontend/` directory)
 - **Backend**: Django 5.0 with Django REST Framework
 - **Database**: PostgreSQL 15
 - **Python**: 3.12 (recommended)
@@ -65,6 +73,52 @@ FlipAI helps users understand **actionable changes** to input data that would fl
 - **Counterfactuals**: DiCE-ML (Diverse Counterfactual Explanations)
 - **API Docs**: Swagger/ReDoc (drf-yasg)
 - **Testing**: pytest, pytest-django
+
+---
+
+## ⚛️ Frontend Development
+
+### Project Structure
+```
+FYP/
+├── frontend/               # React application
+│   ├── src/
+│   │   ├── apiService.js   # Pre-built API functions
+│   │   ├── config.js       # API URL configuration
+│   │   └── App.js
+│   └── .env.local          # API_URL=http://localhost:8000/api
+├── api/                    # Django apps
+├── datasets/
+├── models/
+└── predictions/
+```
+
+### First Time Setup
+```bash
+cd frontend
+npm install
+```
+
+### Making API Calls
+Use the pre-built API service in your React components:
+
+```javascript
+import { datasetAPI, modelAPI, predictionAPI } from './apiService';
+
+// Get all datasets
+const datasets = await datasetAPI.getAll();
+
+// Upload a dataset
+await datasetAPI.upload(file, 'Dataset Name', 'Description');
+
+// Train a model
+await modelAPI.train({ dataset_id: 1, model_type: 'xgboost' });
+
+// Make prediction
+await predictionAPI.predict({ model_id: 1, input_data: {...} });
+```
+
+All API functions are defined in `frontend/src/apiService.js`.
 
 ---
 
