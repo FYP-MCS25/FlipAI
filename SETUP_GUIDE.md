@@ -138,15 +138,40 @@ brew services list | grep postgresql
    - Set a password for the `postgres` user (remember this!)
    - Port: 5432 (default)
    - Locale: Default
-4. ✅ **IMPORTANT:** Check "Add to PATH" or manually add to PATH:
-   - Add `C:\Program Files\PostgreSQL\15\bin` to system PATH
-5. PostgreSQL will start automatically as a Windows service
+4. PostgreSQL will start automatically as a Windows service
+
+**Adding PostgreSQL to System PATH (Required):**
+
+After installation, you must add PostgreSQL to your system PATH so you can use `psql` and other PostgreSQL commands:
+
+1. **Open System Environment Variables:**
+   - Press `Windows + R` to open Run dialog
+   - Type: `sysdm.cpl` and press Enter
+   - Click the **"Advanced"** tab
+   - Click **"Environment Variables..."** button at the bottom
+
+2. **Edit PATH Variable:**
+   - In the **"User variables"** section (top half), find and select **"Path"**
+   - Click **"Edit..."** button
+   - Click **"New"** button
+   - Type: `C:\Program Files\PostgreSQL\15\bin`
+   - Click **"OK"** on all dialogs to save
+
+3. **Close and Reopen Terminal:**
+   - Close **all** PowerShell/Command Prompt windows
+   - Open a **new** terminal window
 
 **Verify Installation:**
+
+Open a new terminal and test:
 
 ```cmd
 psql --version
 ```
+
+You should see: `psql (PostgreSQL) 15.x`
+
+> ⚠️ **Note:** VS Code terminals may not detect the updated PATH. If `psql --version` still doesn't work after adding to PATH and restarting your terminal, close VS Code completely and reopen it.
 
 ### Create Database
 
@@ -612,7 +637,43 @@ pip install --force-reinstall psycopg2-binary
 
 ---
 
-### Issue 3: Python Version Mismatch
+### Issue 3: 'psql' Command Not Found (Windows)
+
+**Error:**
+```
+psql : The term 'psql' is not recognized as the name of a cmdlet, function, script file, or operable program.
+```
+
+**Cause:** PostgreSQL bin directory is not in your system PATH.
+
+**Solution:**
+
+1. **Add PostgreSQL to PATH manually:**
+   - Press `Windows + R`, type `sysdm.cpl`, and press Enter
+   - Click **"Advanced"** tab → **"Environment Variables..."**
+   - In **"User variables"**, select **"Path"** → Click **"Edit..."**
+   - Click **"New"** and add: `C:\Program Files\PostgreSQL\15\bin`
+   - Click **"OK"** on all dialogs
+
+2. **Restart your terminal:**
+   - Close **all** PowerShell/Command Prompt windows
+   - Open a **new** terminal
+   - Test: `psql --version`
+
+3. **If using VS Code:**
+   - Close VS Code **completely**
+   - Reopen VS Code
+   - Open a new terminal in VS Code
+   - Test: `psql --version`
+
+**Temporary workaround (for current session only):**
+```powershell
+$env:Path += ";C:\Program Files\PostgreSQL\15\bin"
+```
+
+---
+
+### Issue 4: Python Version Mismatch
 
 **Error:**
 ```
@@ -656,7 +717,7 @@ pip install -r requirements.txt
 
 ---
 
-### Issue 4: Module Not Found (pkg_resources)
+### Issue 5: Module Not Found (pkg_resources)
 
 **Error:**
 ```
@@ -670,7 +731,7 @@ pip install setuptools
 
 ---
 
-### Issue 5: Port Already in Use
+### Issue 6: Port Already in Use
 
 **Error:**
 ```
@@ -700,7 +761,7 @@ python manage.py runserver 8001
 
 ---
 
-### Issue 6: PowerShell Execution Policy Error
+### Issue 7: PowerShell Execution Policy Error
 
 **Error (Windows only):**
 ```
@@ -718,7 +779,7 @@ venv\Scripts\Activate.ps1
 
 ---
 
-### Issue 7: Pandas/NumPy Compilation Errors
+### Issue 8: Pandas/NumPy Compilation Errors
 
 **Solution:**  
 The `requirements.txt` uses flexible versioning (e.g., `pandas>=2.2.0`). If you encounter compilation issues:
@@ -730,7 +791,7 @@ pip install --upgrade numpy pandas scipy scikit-learn
 
 ---
 
-### Issue 8: SHAP / numba Incompatibility with Python 3.13
+### Issue 9: SHAP / numba Incompatibility with Python 3.13
 
 **Error:**
 ```
@@ -770,7 +831,7 @@ pip install "coverage>=7.0" "shap>=0.51.0" "numba>=0.60.0"
 
 ---
 
-### Issue 9: Model Not Found When Running Counterfactuals
+### Issue 10: Model Not Found When Running Counterfactuals
 
 **Error:**
 ```

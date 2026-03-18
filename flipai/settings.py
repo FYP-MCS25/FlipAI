@@ -51,7 +51,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',
     'corsheaders',
-    'drf_yasg',
+    'drf_spectacular',
     
     # Local apps
     'datasets',
@@ -162,6 +162,15 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'FlipAI API',
+    'DESCRIPTION': 'API for FlipAI - Actionable Explanations with SHAP-Guided Counterfactuals',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # CORS Settings
