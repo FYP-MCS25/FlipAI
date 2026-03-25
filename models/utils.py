@@ -7,8 +7,10 @@ from sklearn.svm import SVC
 from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier
 import joblib
+import os
 from typing import Dict, Any, Tuple, List
 import pandas as pd
+from django.conf import settings
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -70,6 +72,14 @@ def load_model(file_path: str) -> Any:
         Loaded model
     """
     return joblib.load(file_path)
+
+def load_model_pipeline(ml_model: Any) -> Any:
+    """Load model pipeline seamlessly from MLModel API record"""
+    model_path = ml_model.model_file.path
+    if not os.path.exists(model_path):
+        model_path = os.path.join(settings.MEDIA_ROOT, ml_model.model_file.name)
+        
+    return joblib.load(model_path)
 
 
 def get_default_hyperparameters(model_type: str) -> Dict:
