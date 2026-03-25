@@ -41,6 +41,55 @@ class DatasetViewSet(viewsets.ModelViewSet):
         Process dataset to extract metadata and statistics
         """
         dataset = self.get_object()
-        # TODO: Implement dataset processing logic
-        return Response({'status': 'processing started'})
+        
+        try:
+            from .utils import process_dataset_file, calculate_column_statistics
+            
+            # Process file and drop NAs
+            df, metadata = process_dataset_file(dataset.file.path)
+            
+            # Update dataset metadata
+            dataset.num_rows = metadata['num_rows']
+            dataset.num_columns = metadata['num_columns']
+            dataset.column_names = metadata['column_names']
+            dataset.column_types = metadata['column_types']
+            dataset.is_processed = True
+            dataset.save()
+            
+            # Create/update DatasetColumn records
+            dataset.columns.all().delete()  # Clear existing columns first
+            
+            for col_name in metadata['column_names']:
+                col_type = metadata['column_types'].get(col_name, 'unknown')
+                stats = calculate_column_statistics(df, col_name)
+                
+                # Simple heuristic to infer target column
+                is_target = col_name.lower() in ['target', 'class', 'label', 'income', 'outcome', 'y']
+                
+                DatasetColumn.objects.create(
+                    dataset=dataset,
+                    name=col_name,
+                    data_type=col_type,
+                    is_target=is_target,
+                    is_feature=not is_target,
+                    min_value=stats.get('min_value'),
+                    max_value=stats.get('max_value'),
+                    mean_value=stats.get('mean_value'),
+                    std_value=stats.get('std_value'),
+                    unique_values=stats.get('unique_values'),
+                    num_unique=stats.get('num_unique'),
+                    missing_count=stats.get('missing_count'),
+                    missing_percentage=stats.get('missing_percentage')
+                )
+                
+            return Response({
+                'status': 'processing completed',
+                'metadata': metadata
+            })
+            
+        except Exception as e:
+            return Response({
+                'status': 'processing failed',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 

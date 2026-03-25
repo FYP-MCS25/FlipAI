@@ -20,4 +20,5 @@ class DatasetSerializer(serializers.ModelSerializer):
 class DatasetUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dataset
-        fields = ['name', 'description', 'file']
+        fields = ['id', 'name', 'description', 'file']
+        read_only_fields = ['id']
