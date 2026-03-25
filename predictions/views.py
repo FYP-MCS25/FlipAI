@@ -1,7 +1,20 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+import os
+import pandas as pd
+import numpy as np
+import shap
+import dice_ml
+import google.generativeai as genai
+from django.conf import settings
+
+from models.models import MLModel
+from models.utils import load_model, load_model_pipeline
+from datasets.utils import load_clean_dataset
+
 from .models import Prediction, Counterfactual, SHAPExplanation, CounterfactualSearch
+from .utils import hash_input_data, prepare_shap_data, get_feature_changes, calculate_actionability_score
 from .serializers import (
     PredictionSerializer, 
     CounterfactualSerializer, 
@@ -30,29 +43,13 @@ class PredictionViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         
         try:
-            import pandas as pd
-            import numpy as np
-            import shap
-            from models.utils import load_model
-            from models.models import MLModel
-            from .utils import hash_input_data, prepare_shap_data
-            
             # 1. Fetch model
             ml_model = MLModel.objects.get(id=data['model_id'])
             if not ml_model.is_trained or not ml_model.model_file:
                 return Response({'error': 'Model is not trained yet'}, status=status.HTTP_400_BAD_REQUEST)
                 
             # 2. Load the pipeline
-            from django.conf import settings
-            import os
-            
-            # Handle potential absolute/relative path differences
-            model_path = ml_model.model_file.path
-            if not os.path.exists(model_path):
-                # Fallback to MEDIA_ROOT manual join if needed
-                model_path = os.path.join(settings.MEDIA_ROOT, ml_model.model_file.name)
-                
-            pipeline = load_model(model_path)
+            pipeline = load_model_pipeline(ml_model)
             
             # 3. Prepare data
             input_dict = data['input_data']
@@ -163,29 +160,14 @@ class PredictionViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         
         try:
-            import pandas as pd
-            import numpy as np
-            import dice_ml
-            from models.utils import load_model
-            from django.conf import settings
-            import os
-            from .utils import calculate_distance, get_feature_changes, calculate_actionability_score
-            
             ml_model = prediction.model
             dataset = ml_model.dataset
             
             # 1. Load data
-            if dataset.file.path.endswith('.csv'):
-                df = pd.read_csv(dataset.file.path)
-            else:
-                df = pd.read_excel(dataset.file.path)
-            df = df.dropna()
+            df = load_clean_dataset(dataset.file.path)
             
             # 2. Load model
-            model_path = ml_model.model_file.path
-            if not os.path.exists(model_path):
-                model_path = os.path.join(settings.MEDIA_ROOT, ml_model.model_file.name)
-            pipeline = load_model(model_path)
+            pipeline = load_model_pipeline(ml_model)
             
             # 3. Setup DiCE
             continuous_features = ml_model.train_metrics.get('continuous_features', [])
@@ -321,8 +303,6 @@ class PredictionViewSet(viewsets.ModelViewSet):
         predicted_label = request.data.get('predicted_outcome_label', prediction.prediction_class)
         
         try:
-            import os
-            import google.generativeai as genai
             api_key = os.environ.get('GEMINI_API_KEY')
             
             # Calculate confidence level
@@ -370,7 +350,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 return Response({'explanation': mock_explanation}, status=status.HTTP_200_OK)
                 
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-2.5-flash', system_instruction="You are a helpful analyst explaining ML model predictions to average users.")
+            model = genai.GenerativeModel('models/gemini-3.1-flash-lite-preview', system_instruction="You are a helpful analyst explaining ML model predictions to average users.")
             response = model.generate_content(prompt)
             
             explanation = response.text

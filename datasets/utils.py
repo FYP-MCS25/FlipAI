@@ -70,6 +70,16 @@ def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
     return stats
 
 
+def load_clean_dataset(file_path: str) -> pd.DataFrame:
+    """Load dataset safely and drop NAs"""
+    if file_path.endswith('.csv'):
+        df = pd.read_csv(file_path)
+    elif file_path.endswith(('.xls', '.xlsx')):
+        df = pd.read_excel(file_path)
+    else:
+        raise ValueError("Unsupported file format")
+    return df.dropna()
+
 def process_dataset_file(file_path: str) -> Tuple[pd.DataFrame, Dict]:
     """
     Process uploaded dataset file by reading it, removing missing values,
@@ -81,16 +91,7 @@ def process_dataset_file(file_path: str) -> Tuple[pd.DataFrame, Dict]:
     Returns:
         Tuple of (DataFrame, metadata dictionary)
     """
-    # Read file based on extension
-    if file_path.endswith('.csv'):
-        df = pd.read_csv(file_path)
-    elif file_path.endswith(('.xls', '.xlsx')):
-        df = pd.read_excel(file_path)
-    else:
-        raise ValueError("Unsupported file format")
-    
-    # Drop rows with any missing values
-    df = df.dropna()
+    df = load_clean_dataset(file_path)
     
     # Save cleaned df back to file
     if file_path.endswith('.csv'):

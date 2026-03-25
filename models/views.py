@@ -3,6 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import MLModel, TrainingJob
 from .serializers import MLModelSerializer, TrainingJobSerializer, ModelTrainSerializer
+import os
+import uuid
+import pandas as pd
+from django.conf import settings
+from datasets.models import Dataset
+from datasets.utils import load_clean_dataset
+from .utils import build_and_train_pipeline, save_model
 
 
 class MLModelViewSet(viewsets.ModelViewSet):
@@ -24,23 +31,8 @@ class MLModelViewSet(viewsets.ModelViewSet):
         
         # Start training process
         try:
-            from datasets.models import Dataset
-            from .models import TrainingJob
-            import pandas as pd
-            import uuid
-            from .utils import build_and_train_pipeline, save_model
-            from django.core.files.base import ContentFile
-            import os
-            
             dataset = Dataset.objects.get(id=data['dataset_id'])
-            
-            # Read dataset
-            if dataset.file.path.endswith('.csv'):
-                df = pd.read_csv(dataset.file.path)
-            else:
-                df = pd.read_excel(dataset.file.path)
-                
-            df = df.dropna()
+            df = load_clean_dataset(dataset.file.path)
                 
             # Create MLModel entry
             model_record = MLModel.objects.create(
@@ -76,7 +68,6 @@ class MLModelViewSet(viewsets.ModelViewSet):
             save_path = os.path.join('models/saved_models', model_filename)
             
             # Let's save physically to the path where Django expects
-            from django.conf import settings
             os.makedirs(os.path.join(settings.MEDIA_ROOT, 'models/saved_models'), exist_ok=True)
             full_save_path = os.path.join(settings.MEDIA_ROOT, save_path)
             

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Dataset, DatasetColumn
 from .serializers import DatasetSerializer, DatasetUploadSerializer
+from .utils import process_dataset_file, calculate_column_statistics
 
 
 class DatasetViewSet(viewsets.ModelViewSet):
@@ -43,8 +44,6 @@ class DatasetViewSet(viewsets.ModelViewSet):
         dataset = self.get_object()
         
         try:
-            from .utils import process_dataset_file, calculate_column_statistics
-            
             # Process file and drop NAs
             df, metadata = process_dataset_file(dataset.file.path)
             
