@@ -72,7 +72,8 @@ def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
 
 def process_dataset_file(file_path: str) -> Tuple[pd.DataFrame, Dict]:
     """
-    Process uploaded dataset file
+    Process uploaded dataset file by reading it, removing missing values,
+    saving the clean dataset, and extracting metadata.
     
     Args:
         file_path: Path to the dataset file
@@ -87,6 +88,15 @@ def process_dataset_file(file_path: str) -> Tuple[pd.DataFrame, Dict]:
         df = pd.read_excel(file_path)
     else:
         raise ValueError("Unsupported file format")
+    
+    # Drop rows with any missing values
+    df = df.dropna()
+    
+    # Save cleaned df back to file
+    if file_path.endswith('.csv'):
+        df.to_csv(file_path, index=False)
+    elif file_path.endswith(('.xls', '.xlsx')):
+        df.to_excel(file_path, index=False)
     
     # Extract metadata
     metadata = {
