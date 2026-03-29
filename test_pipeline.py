@@ -33,8 +33,7 @@ def run_test():
         y = adult.data.targets 
         
         # Combine and take a subset if we want faster testing, but we can do full 32k rows 
-        # (might take a minute to train, let's take first 5000 for faster test)
-        df = pd.concat([X, y], axis=1).head(2000)
+        df = pd.concat([X, y], axis=1)
         
         # Ensure we drop NaNs so training is straightforward
         df = df.dropna()
@@ -175,7 +174,14 @@ def run_test():
         explain_data = {
             "expected_outcome": desired_class,
             "expected_outcome_label": desired_label,
-            "predicted_outcome_label": actual_income
+            "predicted_outcome_label": actual_income,
+            "target_description": "annual income of more than $50,000" if desired_class == 1 else "annual income of $50,000 or less",
+            "feature_descriptions": {
+                "capital-gain": "yearly profits from investments or asset sales",
+                "capital-loss": "yearly losses from investments or asset sales",
+                "education-num": "years of formal education",
+                "hours-per-week": "number of hours worked each week"
+            }
         }
         
         print(f"⏳ Waiting for Gemini API to explain how to get {desired_label}...")
