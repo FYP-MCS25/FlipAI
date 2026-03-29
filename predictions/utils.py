@@ -83,12 +83,23 @@ def calculate_actionability_score(feature_changes: Dict, feature_constraints: Di
     """
     # TODO: Implement sophisticated actionability scoring
     # For now, return a simple score based on number of changes
-    if not feature_changes:
-        return 1.0
-    
-    # Fewer changes = more actionable
+    # Combine number of changes with magnitude of changes
     num_changes = len(feature_changes)
-    return max(0.0, 1.0 - (num_changes * 0.1))
+    
+    # Base score from number of changes
+    score = 1.0 - (num_changes * 0.1)
+    
+    # Penalize large numeric jumps (magnitudes)
+    # Since we don't have global scale, we use a relative penalty
+    # This is a heuristic: large absolute values for 'change' reduce scores slightly
+    magnitude_penalty = 0.0
+    for details in feature_changes.values():
+        abs_change = abs(details.get('change', 0) or 0)
+        if abs_change > 0:
+            # log-scale penalty so it doesn't instantly kill the score
+            magnitude_penalty += np.log10(abs_change + 1) * 0.01 
+            
+    return max(0.01, score - magnitude_penalty)
 
 
 def prepare_shap_data(shap_values: np.ndarray, feature_names: List[str], base_value: float) -> Dict:

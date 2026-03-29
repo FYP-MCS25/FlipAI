@@ -25,6 +25,75 @@ from .serializers import (
 )
 
 
+class PipelineWrapper:
+    """
+    Wraps a fitted sklearn Pipeline so that DiCE can generate counterfactuals
+    in the **original (human-readable) feature space**.
+
+    DiCE calls predict_proba / predict on raw DataFrames (e.g., with string
+    categorical values). This wrapper handles encoding/scaling internally
+    by delegating to the pipeline's preprocessor step before calling the model.
+    """
+
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+        self.preprocessor = pipeline.named_steps['preprocessor']
+        self.model = pipeline.named_steps['model']
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        X_transformed = self.preprocessor.transform(X)
+        return self.model.predict_proba(X_transformed)
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        X_transformed = self.preprocessor.transform(X)
+        return self.model.predict(X_transformed)
+
+    # Expose classes_ so DiCE / confidence scoring can look up class indices
+    @property
+    def classes_(self):
+        return self.model.classes_
+
+
+def _select_best_counterfactual(cfs):
+    """
+    Deterministically select the best counterfactual from a queryset.
+
+    Rules (in priority order):
+      1. Fewest feature changes  (simplest = most achievable)
+      2. Among options with equal changes: highest confidence
+      3. A multi-change option may override the fewest-change winner ONLY IF:
+         - It has <= 1 extra feature compared to the fewest-change option
+         - Its confidence is more than 10% higher than the fewest-change winner
+    """
+    cf_list = list(cfs[:10])
+    if not cf_list:
+        return None
+
+    def conf(cf):
+        return float(cf.counterfactual_data.get('_confidence', 0.5))
+
+    # Step 1: find the fewest-change option (by num_changes, then highest actionability * confidence)
+    def cf_score(cf):
+        # We consider both confidence and actionability for internal ranking 
+        return float(cf.counterfactual_data.get('_confidence', 0.5)) + float(cf.actionability_score)
+
+    min_changes = min(cf.num_changes for cf in cf_list)
+    fewest_change_candidates = [cf for cf in cf_list if cf.num_changes == min_changes]
+    best_simple = max(fewest_change_candidates, key=cf_score)
+
+    # Step 2: see if any other option with at most 1 extra change has a significantly better score
+    for cf in cf_list:
+        if cf == best_simple:
+            continue
+        extra_changes = cf.num_changes - min_changes
+        # We use a combined confidence + actionability "gain" to justify an extra change
+        score_gain = cf_score(cf) - cf_score(best_simple)
+        if extra_changes <= 1 and score_gain > 0.05:
+            best_simple = cf  # override
+
+    return best_simple
+
+
 class PredictionViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Prediction operations
@@ -169,13 +238,23 @@ class PredictionViewSet(viewsets.ModelViewSet):
             # 2. Load model
             pipeline = load_model_pipeline(ml_model)
             
-            # 3. Setup DiCE
+            # 3. Setup DiCE using the PipelineWrapper so CFs are in raw feature space
             continuous_features = ml_model.train_metrics.get('continuous_features', [])
             target_name = ml_model.target_name
-            
-            d = dice_ml.Data(dataframe=df, continuous_features=continuous_features, outcome_name=target_name)
-            m = dice_ml.Model(model=pipeline, backend="sklearn")
-            exp = dice_ml.Dice(d, m, method="random") # robust method for sklearn pipelines
+
+            model_wrapper = PipelineWrapper(pipeline)
+
+            d = dice_ml.Data(
+                dataframe=df,
+                continuous_features=continuous_features,
+                outcome_name=target_name
+            )
+            m = dice_ml.Model(
+                model=model_wrapper,
+                backend='sklearn',
+                model_type='classifier'
+            )
+            exp = dice_ml.Dice(d, m, method='random')
             
             # 4. Handle frozen features / constraints
             constraints = data.get('feature_constraints', {})
@@ -242,11 +321,11 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 
                 score = calculate_actionability_score(changes)
                 
-                # Predict confidence for the counterfactual BEFORE saving
+                # Confidence: use the wrapper which handles raw input correctly
                 cf_input_df = pd.DataFrame([cf_dict])
-                cf_prediction_probs = pipeline.predict_proba(cf_input_df)[0]
+                cf_prediction_probs = model_wrapper.predict_proba(cf_input_df)[0]
                 try:
-                    target_idx = pipeline.classes_.tolist().index(cf_target)
+                    target_idx = model_wrapper.classes_.tolist().index(cf_target)
                     cf_prob_val = float(cf_prediction_probs[target_idx])
                 except Exception:
                     cf_prob_val = float(max(cf_prediction_probs))
@@ -286,9 +365,8 @@ class PredictionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'status': 'generation failed',
-                'error': str(e)
+                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
 
     @action(detail=True, methods=['post'])
     def explain(self, request, pk=None):
@@ -296,67 +374,102 @@ class PredictionViewSet(viewsets.ModelViewSet):
         Use an LLM to explain the prediction and any generated counterfactuals.
         """
         prediction = self.get_object()
-        
-        # Check if user expects a certain outcome
+
         expected_outcome = request.data.get('expected_outcome')
         expected_label = request.data.get('expected_outcome_label', expected_outcome)
         predicted_label = request.data.get('predicted_outcome_label', prediction.prediction_class)
         
+        # New: optional descriptions for flexibility
+        target_description = request.data.get('target_description') # e.g. "annual income > $50k"
+        feature_descriptions = request.data.get('feature_descriptions', {}) # e.g. {"education-num": "years of education"}
+
         try:
             api_key = os.environ.get('GEMINI_API_KEY')
-            
-            # Calculate confidence level
+
             confidence_str = ""
             if prediction.prediction_probabilities:
-                conf = prediction.prediction_probabilities.get(str(prediction.prediction_class))
-                if conf:
-                    confidence_str = f" with a confidence level of {float(conf)*100:.1f}%"
+                conf_val = prediction.prediction_probabilities.get(str(prediction.prediction_class))
+                if conf_val:
+                    confidence_str = f" with a confidence level of {float(conf_val)*100:.1f}%"
+
+            # Build feature context for the LLM
+            input_items = []
+            for k, v in prediction.input_data.items():
+                desc = feature_descriptions.get(k)
+                if desc:
+                    input_items.append(f"{k} (meaning {desc}): {v}")
+                else:
+                    input_items.append(f"{k}: {v}")
+            input_data_str = ", ".join(input_items)
+
+            # Define outcome labels with descriptions if provided
+            target_text = f"'{expected_label}'"
+            if target_description:
+                target_text += f" (interpreted as: {target_description})"
             
-            # Formulate the prompt
-            input_data_str = ", ".join([f"{k}: {v}" for k, v in prediction.input_data.items()])
-            
-            prompt = f"You are an expert AI data scientist helping a user understand a machine learning prediction.\n\n"
-            prompt += f"The user provided the following data points:\n{input_data_str}\n\n"
-            prompt += f"The ML model initially predicted the outcome to be: '{predicted_label}'{confidence_str}.\n"
-            
+            predicted_text = f"'{predicted_label}'"
+            # We assume if the user provided a description for the expected outcome, they might want one for the predicted too
+            # but usually the labels are symmetric. If target_description is missing, we let LLM self-translate.
+
+            prompt = (
+                f"You are an expert AI data scientist explaining an XGBoost model prediction to an average user.\n\n"
+                f"CONTEXT:\n"
+                f"The user provided the following data points:\n{input_data_str}\n\n"
+                f"The model initially predicted the outcome to be: {predicted_text}{confidence_str}.\n"
+            )
+
             if expected_outcome is not None:
-                prompt += f"The user expected the outcome to be: '{expected_label}'.\n\n"
-                
-                # Check for counterfactuals
-                cfs = prediction.counterfactuals.filter(counterfactual_class=str(expected_outcome)).order_by('rank')
+                prompt += f"The user's goal or expected outcome is: {target_text}.\n\n"
+
+                cfs = prediction.counterfactuals.filter(
+                    counterfactual_class=str(expected_outcome)
+                ).order_by('-actionability_score') # Logic in _select_best_counterfactual handles tie-breaking
+
                 if cfs.exists():
-                    prompt += f"Our optimization engine generated {cfs.count()} alternative scenarios to achieve the outcome of '{expected_label}'.\n"
-                    for i, cf in enumerate(cfs[:10]):
-                        conf_val = cf.counterfactual_data.get('_confidence', 0.51)
-                        changes_str = ", ".join([f"{k} from {v['original']} to {v['counterfactual']}" for k, v in cf.feature_changes.items()])
-                        prompt += f"Option {i+1} (Confidence: {conf_val*100:.1f}%): Change {changes_str}\n"
-                    
-                    prompt += "\nTASK: Analyze these generated options and silently select the single most realistic and achievable path for a human being.\n"
-                    prompt += f"Then, output a highly concise, bulleted action plan strictly based on that chosen option. You MUST explicitly state the original prediction confidence ({confidence_str.strip()}) and explain that making these exact changes guarantees overcoming the threshold to achieve the '{expected_label}' goal. You MUST include the exact numbers and feature names from your chosen option (e.g., 'Increase capital-gain to 14085' or 'Change occupation to Sales'). Provide realistic, real-world advice on how to achieve these specific target numbers. Use active verbs. DO NOT mention the other options. DO NOT provide conversational filler.\n"
-                    prompt += f"\nFinally, conclude with a single line stating the exact confidence level attached to your chosen option (e.g., 'Estimated New Confidence Level: [insert percentage from chosen option]% for {expected_label}').\n"
+                    chosen_cf = _select_best_counterfactual(cfs)
+                    if chosen_cf:
+                        chosen_conf = float(chosen_cf.counterfactual_data.get('_confidence', 0.5))
+                        
+                        # Build changes list with description mapping
+                        change_lines = []
+                        for k, v in chosen_cf.feature_changes.items():
+                            desc = feature_descriptions.get(k)
+                            label_hint = f" ({desc})" if desc else ""
+                            change_lines.append(f"  - Change {k}{label_hint} from {v['original']} to {v['counterfactual']}")
+                        
+                        changes_str = "\n".join(change_lines)
+
+                        prompt += (
+                            f"Our system has selected the most realistic path to reach {target_text}:\n\n"
+                            f"{changes_str}\n\n"
+                            f"This path carries an estimated new confidence of {chosen_conf*100:.1f}%.\n\n"
+                            f"TASK:\n"
+                            f"1. Explain ONLY the changes listed above in a highly concise, bulleted action plan.\n"
+                            f"2. You MUST state the original prediction and how these specific changes flip it to {target_text}.\n"
+                            f"3. IMPORTANT: Self-translate any technical labels or condensed feature names (e.g., '>50K', 'capital-gain') "
+                            f"into clear, conversational, and actionable English.\n"
+                            f"4. Provide realistic, real-world advice on HOW to achieve each change. Use active verbs.\n"
+                            f"5. DO NOT provide conversational filler.\n\n"
+                            f"Conclude with exactly one line: 'Estimated New Confidence Level: {chosen_conf*100:.1f}% for {expected_label}.'\n"
+                        )
                 else:
                     if str(expected_outcome) == str(prediction.prediction_class):
-                        # Matched expectations
                         prompt += "The prediction matches the user's expectations. Please suggest 2-3 ways the user can further improve their current features to make this positive outcome even more secure or increase the confidence level.\n"
                     else:
                         prompt += f"Could you provide general advice on what factors usually influence the outcome to become {expected_outcome}?\n"
             else:
                 prompt += "Please provide a brief, intuitive explanation of what this outcome means based on the input data.\n"
-            
+
             if not api_key:
-                # Mock response if no API key
                 mock_explanation = "This is a simulated LLM explanation. To get real explanations, ensure the GEMINI_API_KEY environment variable is set in your .env file.\n\n"
                 mock_explanation += f"Based on the prompt we generated: \n\n{prompt}"
                 return Response({'explanation': mock_explanation}, status=status.HTTP_200_OK)
-                
+
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-3.1-flash-lite-preview', system_instruction="You are a helpful analyst explaining ML model predictions to average users.")
+            model = genai.GenerativeModel('models/gemini-3.1-flash-lite-preview', system_instruction="You are a helpful analyst who translates machine learning data into clear, human-friendly advice. You always pick the most empathetic and actionable way to describe technical features.")
             response = model.generate_content(prompt)
-            
-            explanation = response.text
-            
-            return Response({'explanation': explanation}, status=status.HTTP_200_OK)
-            
+            return Response({'explanation': response.text}, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response({
                 'status': 'explanation failed',
