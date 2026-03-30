@@ -308,6 +308,7 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
         {pendingDataset ? (
           <FeatureConfigForm
             datasetName={pendingDataset.name}
+            modelName="AutoML Classifier"
             features={pendingDataset.features}
             onConfirm={handleFeatureConfigConfirm}
           />

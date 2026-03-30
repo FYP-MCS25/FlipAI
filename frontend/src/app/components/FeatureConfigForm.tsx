@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 
 interface FeatureConfigFormProps {
   datasetName: string;
+  modelName: string;
   features: string[];
   onConfirm: (config: { targetFeature: string; frozenFeatures: string[] }) => void;
 }
@@ -11,6 +12,7 @@ const FEATURES_PER_PAGE = 10;
 
 export function FeatureConfigForm({
   datasetName,
+  modelName,
   features,
   onConfirm,
 }: FeatureConfigFormProps) {
@@ -93,209 +95,198 @@ export function FeatureConfigForm({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-zinc-950">
-      {/* Header */}
-      <div className="flex-shrink-0 p-6 border-b border-white/10">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-semibold text-white mb-2">
-            Configure Counterfactual Analysis
-          </h1>
-          <p className="text-white/60">
-            Dataset: <span className="text-white font-medium">{datasetName}</span>
-          </p>
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="max-w-4xl mx-auto p-8 space-y-8">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold text-white">{datasetName}</h1>
+          <p className="text-white/60">Model: {modelName}</p>
         </div>
-      </div>
 
-      {/* Scrollable Content Area */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          {/* Search */}
-          <div className="p-6 border-b border-white/10 bg-zinc-900/50">
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <Search className="w-5 h-5 text-white/40" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search features..."
-                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500 transition-colors"
-              />
+        {/* Search */}
+        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+              <Search className="w-5 h-5 text-white/40" />
             </div>
-            {searchQuery && (
-              <p className="text-sm text-white/60 mt-2">
-                Found {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''}
-              </p>
-            )}
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search features..."
+              className="w-full pl-11 pr-4 py-3 bg-black/20 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500 transition-colors"
+            />
           </div>
+          {searchQuery && (
+            <p className="text-sm text-white/60 mt-2">
+              Found {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
 
-          {/* Instructions */}
-          <div className="p-6 bg-zinc-900/30 border-b border-white/10">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3 p-4 bg-blue-600/10 border border-blue-600/20 rounded-lg">
-                <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
-                  <Target className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-white font-medium mb-1">Target Feature</h3>
-                  <p className="text-sm text-white/60">
-                    Select ONE feature you want to flip in the prediction outcome
-                  </p>
-                </div>
+        {/* Instructions */}
+        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-black/20 border border-white/10">
+              <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
+                <Target className="w-5 h-5 text-blue-400" />
               </div>
+              <div>
+                <h3 className="text-white font-medium mb-1">Target Feature</h3>
+                <p className="text-sm text-white/60">
+                  Select ONE feature you want to flip in the prediction outcome
+                </p>
+              </div>
+            </div>
 
-              <div className="flex items-start gap-3 p-4 bg-amber-600/10 border border-amber-600/20 rounded-lg">
-                <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
-                  <Lock className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-white font-medium mb-1">Frozen Features</h3>
-                  <p className="text-sm text-white/60">
-                    Select features that should remain constant (optional)
-                  </p>
-                </div>
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-black/20 border border-white/10">
+              <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
+                <Lock className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-medium mb-1">Frozen Features</h3>
+                <p className="text-sm text-white/60">
+                  Select features that should remain constant (optional)
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Feature List */}
-          <div className="p-6">
-            {filteredFeatures.length === 0 ? (
-              <div className="text-center py-12">
-                <Search className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                <p className="text-white/40">No features found matching "{searchQuery}"</p>
-              </div>
-            ) : (
-              <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
-                {/* Header Row */}
-                <div className="flex items-center gap-4 p-4 bg-white/5 border-b border-white/10">
-                  <div className="flex-1 text-sm font-medium text-white/60">Feature Name</div>
-                  <div className="text-sm font-medium text-white/60 text-center w-20">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Target className="w-4 h-4 text-blue-400" />
-                      <span>Target</span>
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium text-white/60 text-center w-20">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Lock className="w-4 h-4 text-amber-400" />
-                      <span>Freeze</span>
-                    </div>
-                  </div>
+        {/* Feature List */}
+        {filteredFeatures.length === 0 ? (
+          <div className="bg-white/5 rounded-xl border border-white/10 text-center py-12 px-6">
+            <Search className="w-12 h-12 text-white/20 mx-auto mb-3" />
+            <p className="text-white/40">No features found matching "{searchQuery}"</p>
+          </div>
+        ) : (
+          <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+            {/* Header Row */}
+            <div className="flex items-center gap-4 p-4 bg-white/5 border-b border-white/10">
+              <div className="flex-1 text-sm font-medium text-white/60">Feature Name</div>
+              <div className="text-sm font-medium text-white/60 text-center w-20">
+                <div className="flex items-center justify-center gap-1.5">
+                  <Target className="w-4 h-4 text-blue-400" />
+                  <span>Target</span>
                 </div>
+              </div>
+              <div className="text-sm font-medium text-white/60 text-center w-20">
+                <div className="flex items-center justify-center gap-1.5">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>Freeze</span>
+                </div>
+              </div>
+            </div>
 
-                {/* Feature Rows */}
-                <div className="divide-y divide-white/5">
-                  {currentFeatures.map((feature, index) => {
-                    const globalIndex = startIndex + index + 1;
-                    const isTarget = targetFeature === feature;
-                    const isFrozen = frozenFeatures.includes(feature);
+            {/* Feature Rows */}
+            <div className="divide-y divide-white/5">
+              {currentFeatures.map((feature, index) => {
+                const globalIndex = startIndex + index + 1;
+                const isTarget = targetFeature === feature;
+                const isFrozen = frozenFeatures.includes(feature);
 
-                    return (
-                      <div
-                        key={feature}
-                        className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
-                      >
-                        {/* Feature Name - Left Side */}
-                        <div className="flex-1 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-sm text-white/60 flex-shrink-0">
-                            {globalIndex}
-                          </div>
-                          <span className="text-white">{feature}</span>
-                        </div>
-
-                        {/* Target Checkbox - Right Side */}
-                        <div className="flex items-center justify-center w-20">
-                          <label className="cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isTarget}
-                              onChange={() => handleToggleTarget(feature)}
-                              className="w-5 h-5 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-                        </div>
-
-                        {/* Freeze Checkbox - Right Side */}
-                        <div className="flex items-center justify-center w-20">
-                          <label className="cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isFrozen}
-                              onChange={() => handleToggleFrozen(feature)}
-                              className="w-5 h-5 rounded border-white/20 bg-white/5 text-amber-600 focus:ring-amber-500 focus:ring-offset-0 cursor-pointer"
-                            />
-                          </label>
-                        </div>
+                return (
+                  <div
+                    key={feature}
+                    className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
+                  >
+                    {/* Feature Name - Left Side */}
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-sm text-white/60 flex-shrink-0">
+                        {globalIndex}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Pagination */}
-            {filteredFeatures.length > FEATURES_PER_PAGE && (
-              <div className="flex items-center justify-center gap-4 mt-6">
-                <button
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5 text-white" />
-                </button>
-
-                <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg">
-                  <span className="text-white font-medium">{currentPage}</span>
-                  <span className="text-white/40">/</span>
-                  <span className="text-white/60">{totalPages}</span>
-                </div>
-
-                <button
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5 text-white" />
-                </button>
-              </div>
-            )}
-
-            {/* Action Section */}
-            <div className="mt-6 p-4 border border-white/10 rounded-xl bg-zinc-900/50">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-6 text-sm text-white/60">
-                  <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-blue-400" />
-                    <span>
-                      Target:{' '}
-                      {targetFeature ? (
-                        <span className="text-white font-medium">{targetFeature}</span>
-                      ) : (
-                        <span className="text-white/40">None selected</span>
-                      )}
-                    </span>
-                  </div>
-                  {frozenFeatures.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-amber-400" />
-                      <span>
-                        {frozenFeatures.length} frozen feature{frozenFeatures.length !== 1 ? 's' : ''}
-                      </span>
+                      <span className="text-white">{feature}</span>
                     </div>
-                  )}
-                </div>
 
-                <button
-                  onClick={handleConfirm}
-                  disabled={!targetFeature}
-                  className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
-                >
-                  Start Analysis
-                </button>
-              </div>
+                    {/* Target Checkbox - Right Side */}
+                    <div className="flex items-center justify-center w-20">
+                      <label className="cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isTarget}
+                          onChange={() => handleToggleTarget(feature)}
+                          className="w-5 h-5 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Freeze Checkbox - Right Side */}
+                    <div className="flex items-center justify-center w-20">
+                      <label className="cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isFrozen}
+                          onChange={() => handleToggleFrozen(feature)}
+                          className="w-5 h-5 rounded border-white/20 bg-white/5 text-amber-600 focus:ring-amber-500 focus:ring-offset-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {filteredFeatures.length > FEATURES_PER_PAGE && (
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg">
+              <span className="text-white font-medium">{currentPage}</span>
+              <span className="text-white/40">/</span>
+              <span className="text-white/60">{totalPages}</span>
+            </div>
+
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        )}
+
+        {/* Action Section */}
+        <div className="p-4 border border-white/10 rounded-xl bg-white/5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 text-sm text-white/60 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-blue-400" />
+                <span>
+                  Target:{' '}
+                  {targetFeature ? (
+                    <span className="text-white font-medium">{targetFeature}</span>
+                  ) : (
+                    <span className="text-white/40">None selected</span>
+                  )}
+                </span>
+              </div>
+              {frozenFeatures.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>
+                    {frozenFeatures.length} frozen feature{frozenFeatures.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleConfirm}
+              disabled={!targetFeature}
+              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+            >
+              Start Analysis
+            </button>
           </div>
         </div>
       </div>
