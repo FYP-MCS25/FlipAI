@@ -93,7 +93,7 @@ export function FeatureConfigForm({
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="flex-1 min-h-0 flex flex-col bg-zinc-950">
       {/* Header */}
       <div className="flex-shrink-0 p-6 border-b border-white/10">
         <div className="max-w-4xl mx-auto">
@@ -107,7 +107,7 @@ export function FeatureConfigForm({
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           {/* Search */}
           <div className="p-6 border-b border-white/10 bg-zinc-900/50">
@@ -261,41 +261,42 @@ export function FeatureConfigForm({
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      </div>
 
-      {/* Footer */}
-      <div className="flex-shrink-0 p-6 border-t border-white/10 bg-zinc-900/50">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-6 text-sm text-white/60">
-            <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-blue-400" />
-              <span>
-                Target: {targetFeature ? (
-                  <span className="text-white font-medium">{targetFeature}</span>
-                ) : (
-                  <span className="text-white/40">None selected</span>
-                )}
-              </span>
-            </div>
-            {frozenFeatures.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-400" />
-                <span>
-                  {frozenFeatures.length} frozen feature{frozenFeatures.length !== 1 ? 's' : ''}
-                </span>
+            {/* Action Section */}
+            <div className="mt-6 p-4 border border-white/10 rounded-xl bg-zinc-900/50">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-6 text-sm text-white/60">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-blue-400" />
+                    <span>
+                      Target:{' '}
+                      {targetFeature ? (
+                        <span className="text-white font-medium">{targetFeature}</span>
+                      ) : (
+                        <span className="text-white/40">None selected</span>
+                      )}
+                    </span>
+                  </div>
+                  {frozenFeatures.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-amber-400" />
+                      <span>
+                        {frozenFeatures.length} frozen feature{frozenFeatures.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleConfirm}
+                  disabled={!targetFeature}
+                  className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                >
+                  Start Analysis
+                </button>
               </div>
-            )}
+            </div>
           </div>
-
-          <button
-            onClick={handleConfirm}
-            disabled={!targetFeature}
-            className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
-          >
-            Start Analysis
-          </button>
         </div>
       </div>
     </div>
