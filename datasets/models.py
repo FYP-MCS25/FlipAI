@@ -39,6 +39,9 @@ class DatasetColumn(models.Model):
     is_target = models.BooleanField(default=False)
     is_feature = models.BooleanField(default=True)
     
+    # Human-readable description (LLM-generated during processing)
+    description = models.TextField(blank=True, default='')
+    
     # Statistics for numeric columns
     min_value = models.FloatField(null=True, blank=True)
     max_value = models.FloatField(null=True, blank=True)
