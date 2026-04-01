@@ -375,6 +375,8 @@ def generate_explanation(prediction_id: int, cf_data: Dict[str, Any], actual_lab
     """
     Generate LLM explanation using Gemini.
     
+    Feature descriptions are now auto-fetched from the database during dataset processing.
+    
     Returns:
         Success status
     """
@@ -389,12 +391,14 @@ def generate_explanation(prediction_id: int, cf_data: Dict[str, Any], actual_lab
         "expected_outcome_label": cf_data['desired_label'],
         "predicted_outcome_label": actual_label,
         "target_description": target_desc,
-        "feature_descriptions": FEATURE_DESCRIPTIONS,
+        # Feature descriptions are auto-fetched from database - no need to send them
+        # "feature_descriptions": FEATURE_DESCRIPTIONS,  # <-- Removed hardcoded descriptions
         "grouped_counterfactuals": cf_data['grouped_counterfactuals']
     }
     
     print(f"⏳ Sending {cf_data['total_generated']} counterfactuals across {cf_data['unique_combos']} feature combinations to Gemini...")
     print(f"⏳ Gemini will analyze and select the 5 best diverse options...")
+    print(f"✨ Feature descriptions will be auto-fetched from the dataset")
     
     response = make_api_request('POST', f'predictions/{prediction_id}/explain/', json=explain_data)
     

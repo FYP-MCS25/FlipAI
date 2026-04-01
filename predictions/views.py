@@ -14,6 +14,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from datasets.models import DatasetColumn
 from datasets.utils import load_clean_dataset
 from models.models import MLModel
 from models.utils import load_model, load_model_pipeline
@@ -298,11 +299,12 @@ def _select_best_counterfactual(cfs):
     Deterministically select the best counterfactual from a queryset.
 
     Rules (in priority order):
-      1. Fewest feature changes  (simplest = most achievable)
-      2. Among options with equal changes: highest confidence
-      3. A multi-change option may override the fewest-change winner ONLY IF:
+      1. Filter out low-confidence options (< 70%) unless all options are low confidence
+      2. Fewest feature changes (simplest = most achievable)
+      3. Among options with equal changes: highest confidence
+      4. A multi-change option may override the fewest-change winner ONLY IF:
          - It has <= 1 extra feature compared to the fewest-change option
-         - Its confidence is more than 10% higher than the fewest-change winner
+         - Its total score (confidence + actionability) is significantly better
     """
     cf_list = list(cfs[:10])
     if not cf_list:
@@ -311,17 +313,24 @@ def _select_best_counterfactual(cfs):
     def conf(cf):
         return float(cf.counterfactual_data.get('_confidence', 0.5))
 
-    # Step 1: find the fewest-change option (by num_changes, then highest actionability * confidence)
     def cf_score(cf):
         # We consider both confidence and actionability for internal ranking 
         return float(cf.counterfactual_data.get('_confidence', 0.5)) + float(cf.actionability_score)
 
-    min_changes = min(cf.num_changes for cf in cf_list)
-    fewest_change_candidates = [cf for cf in cf_list if cf.num_changes == min_changes]
+    # Step 1: Filter by confidence threshold
+    MIN_CONFIDENCE = 0.70  # Only recommend options with >= 70% confidence
+    high_conf_options = [cf for cf in cf_list if conf(cf) >= MIN_CONFIDENCE]
+    
+    # If we have high-confidence options, use only those; otherwise fall back to all
+    candidates = high_conf_options if high_conf_options else cf_list
+
+    # Step 2: Find the fewest-change option among candidates
+    min_changes = min(cf.num_changes for cf in candidates)
+    fewest_change_candidates = [cf for cf in candidates if cf.num_changes == min_changes]
     best_simple = max(fewest_change_candidates, key=cf_score)
 
-    # Step 2: see if any other option with at most 1 extra change has a significantly better score
-    for cf in cf_list:
+    # Step 3: See if any other option with at most 1 extra change has a significantly better score
+    for cf in candidates:
         if cf == best_simple:
             continue
         extra_changes = cf.num_changes - min_changes
@@ -606,10 +615,12 @@ class PredictionViewSet(viewsets.ModelViewSet):
         """
         Use LLM to explain prediction and select best 5 diverse counterfactuals.
         
+        Feature descriptions are automatically fetched from the dataset.
+        
         Accepts:
             - expected_outcome: Desired outcome class
             - grouped_counterfactuals: All counterfactuals grouped by feature combinations
-            - feature_descriptions: Human-readable feature descriptions
+            - feature_descriptions (optional): Override auto-fetched descriptions
         """
         prediction = self.get_object()
 
@@ -617,8 +628,24 @@ class PredictionViewSet(viewsets.ModelViewSet):
         expected_label = request.data.get('expected_outcome_label', expected_outcome)
         predicted_label = request.data.get('predicted_outcome_label', prediction.prediction_class)
         target_description = request.data.get('target_description')
-        feature_descriptions = request.data.get('feature_descriptions', {})
         grouped_counterfactuals = request.data.get('grouped_counterfactuals', {})
+        
+        # Fetch feature descriptions from database (allow override from request)
+        feature_descriptions = request.data.get('feature_descriptions')
+        if not feature_descriptions and prediction.model.dataset:
+            # Auto-fetch from dataset columns
+            columns = DatasetColumn.objects.filter(
+                dataset=prediction.model.dataset,
+                is_feature=True
+            )
+            feature_descriptions = {
+                col.name: col.description
+                for col in columns
+                if col.description  # Only include non-empty descriptions
+            }
+            print(f"✅ Auto-fetched {len(feature_descriptions)} feature descriptions from dataset")
+        else:
+            feature_descriptions = feature_descriptions or {}
 
         try:
             api_key = os.environ.get('GEMINI_API_KEY')
@@ -652,19 +679,22 @@ class PredictionViewSet(viewsets.ModelViewSet):
                     f"\nTASK:\n"
                     f"1. ANALYZE all the counterfactual options above.\n"
                     f"2. SELECT the 5 BEST and MOST DIVERSE options that:\n"
+                    f"   - PRIORITIZE options with confidence >= 70% (reject low-confidence options unless no alternatives exist)\n"
                     f"   - Make logical sense (filter out nonsensical combinations)\n"
                     f"   - Are actionable for a real person\n"
                     f"   - Cover different strategies/approaches\n"
-                    f"   - Balance minimal changes with high confidence\n"
+                    f"   - Balance minimal changes with high confidence (confidence is MORE important than minimizing changes)\n"
                     f"3. For each of your 5 selected options, provide:\n"
                     f"   - A clear title (e.g., 'Option 1: Increase Investment Income')\n"
                     f"   - The specific changes needed (use conversational language)\n"
                     f"   - WHY this path works and HOW to achieve it in real life\n"
                     f"   - The estimated confidence level\n"
                     f"4. Start with a brief summary of the original prediction.\n"
-                    f"5. DO NOT provide conversational filler or disclaimers.\n"
-                    f"6. Self-translate technical labels into clear English.\n"
-                    f"7. Use active verbs and be concrete.\n\n"
+                    f"5. When presenting options, LEAD with the highest-confidence option, not the one with fewest changes.\n"
+                    f"6. DO NOT describe a 50-60% confidence option as 'most approachable' or 'recommended' when higher-confidence options exist.\n"
+                    f"7. DO NOT provide conversational filler or disclaimers.\n"
+                    f"8. Self-translate technical labels into clear English.\n"
+                    f"9. Use active verbs and be concrete.\n\n"
                     f"Format your response with clear sections for each option."
                 )
             

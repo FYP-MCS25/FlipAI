@@ -1,9 +1,11 @@
 """
 Utility functions for dataset processing
 """
+import os
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
+import google.generativeai as genai
 
 
 def detect_column_types(df: pd.DataFrame) -> Dict[str, str]:
@@ -108,3 +110,93 @@ def process_dataset_file(file_path: str) -> Tuple[pd.DataFrame, Dict]:
     }
     
     return df, metadata
+
+
+def generate_feature_descriptions(
+    df: pd.DataFrame,
+    column_names: List[str],
+    column_types: Dict[str, str],
+    dataset_name: str = "the dataset"
+) -> Dict[str, str]:
+    """
+    Use LLM to generate human-readable descriptions for each feature.
+    
+    Args:
+        df: pandas DataFrame with the dataset
+        column_names: List of column names
+        column_types: Dictionary mapping column names to types
+        dataset_name: Name of the dataset for context
+        
+    Returns:
+        Dictionary mapping feature names to their descriptions
+    """
+    api_key = os.environ.get('GEMINI_API_KEY')
+    
+    # If no API key, return empty descriptions
+    if not api_key:
+        print("⚠️  GEMINI_API_KEY not set. Skipping feature description generation.")
+        return {col: "" for col in column_names}
+    
+    # Configure Gemini
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-3.1-flash-lite-preview')
+    
+    # Build feature info for the prompt
+    feature_info = []
+    for col in column_names:
+        col_type = column_types.get(col, 'unknown')
+        info = f"- **{col}** (type: {col_type})"
+        
+        # Add sample values or statistics
+        if col_type == 'numeric':
+            min_val = df[col].min()
+            max_val = df[col].max()
+            mean_val = df[col].mean()
+            info += f" - Range: {min_val:.2f} to {max_val:.2f}, Mean: {mean_val:.2f}"
+        elif col_type == 'categorical':
+            unique_vals = df[col].unique()[:5]  # First 5 unique values
+            info += f" - Example values: {', '.join(map(str, unique_vals))}"
+        
+        feature_info.append(info)
+    
+    feature_info_str = "\n".join(feature_info)
+    
+    # Create prompt for LLM
+    prompt = f"""You are analyzing a dataset called "{dataset_name}". Below are the features (columns) in this dataset:
+
+{feature_info_str}
+
+TASK:
+For each feature, provide a concise, human-readable description (5-15 words) that explains what the feature represents in plain English. Keep descriptions practical and easy to understand for non-technical users.
+
+Format your response as a JSON object where keys are feature names and values are descriptions.
+Example format:
+{{
+    "feature1": "brief description of feature1",
+    "feature2": "brief description of feature2"
+}}
+
+Return ONLY the JSON object, no additional text."""
+    
+    try:
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Extract JSON from response (might be wrapped in markdown code blocks)
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+        
+        # Parse JSON
+        import json
+        descriptions = json.loads(response_text)
+        
+        # Ensure all columns have a description (use empty string if missing)
+        return {col: descriptions.get(col, "") for col in column_names}
+    
+    except Exception as e:
+        print(f"⚠️  Error generating feature descriptions: {str(e)}")
+        # Return empty descriptions on error
+        return {col: "" for col in column_names}
+

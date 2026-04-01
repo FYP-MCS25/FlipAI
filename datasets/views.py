@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Dataset, DatasetColumn
 from .serializers import DatasetSerializer, DatasetUploadSerializer
-from .utils import process_dataset_file, calculate_column_statistics
+from .utils import process_dataset_file, calculate_column_statistics, generate_feature_descriptions
 
 
 class DatasetViewSet(viewsets.ModelViewSet):
@@ -39,7 +39,8 @@ class DatasetViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def process(self, request, pk=None):
         """
-        Process dataset to extract metadata and statistics
+        Process dataset to extract metadata and statistics.
+        Also generates human-readable feature descriptions using LLM.
         """
         dataset = self.get_object()
         
@@ -55,12 +56,22 @@ class DatasetViewSet(viewsets.ModelViewSet):
             dataset.is_processed = True
             dataset.save()
             
+            # Generate feature descriptions using LLM
+            print(f"🤖 Generating feature descriptions for {dataset.name}...")
+            feature_descriptions = generate_feature_descriptions(
+                df,
+                metadata['column_names'],
+                metadata['column_types'],
+                dataset.name
+            )
+            
             # Create/update DatasetColumn records
             dataset.columns.all().delete()  # Clear existing columns first
             
             for col_name in metadata['column_names']:
                 col_type = metadata['column_types'].get(col_name, 'unknown')
                 stats = calculate_column_statistics(df, col_name)
+                description = feature_descriptions.get(col_name, '')
                 
                 # Simple heuristic to infer target column
                 is_target = col_name.lower() in ['target', 'class', 'label', 'income', 'outcome', 'y']
@@ -69,6 +80,7 @@ class DatasetViewSet(viewsets.ModelViewSet):
                     dataset=dataset,
                     name=col_name,
                     data_type=col_type,
+                    description=description,
                     is_target=is_target,
                     is_feature=not is_target,
                     min_value=stats.get('min_value'),
@@ -83,7 +95,8 @@ class DatasetViewSet(viewsets.ModelViewSet):
                 
             return Response({
                 'status': 'processing completed',
-                'metadata': metadata
+                'metadata': metadata,
+                'feature_descriptions_generated': len(feature_descriptions)
             })
             
         except Exception as e:
