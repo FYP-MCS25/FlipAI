@@ -124,7 +124,7 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
       name: 'loan_approval.csv', 
       uploadDate: new Date('2026-03-09'), 
       rowCount: 15234,
-      features: ['Loan Approved', 'Credit Score', 'Debt-to-Income Ratio', 'Employment Length', 'Annual Income', 'Loan Amount', 'Home Ownership']
+      features: ['Loan Approved', 'Credit Score', 'Debt-to-Income Ratio', 'Employment Length', 'Annual Income', 'Loan Amount', 'Home Ownership', 'Marriage', 'Race', 'hello', 'bla', 'number of children']
     },
     { 
       id: 'd3', 

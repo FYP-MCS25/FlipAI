@@ -104,7 +104,7 @@ export function FeatureConfigForm({
         </div>
 
         {/* Search */}
-        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
+        <div className="space-y-3">
           <div className="relative">
             <div className="absolute left-3 top-1/2 -translate-y-1/2">
               <Search className="w-5 h-5 text-white/40" />
@@ -117,19 +117,17 @@ export function FeatureConfigForm({
               className="w-full pl-11 pr-4 py-3 bg-black/20 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
+
           {searchQuery && (
-            <p className="text-sm text-white/60 mt-2">
+            <p className="text-sm text-white/60">
               Found {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''}
             </p>
           )}
-        </div>
 
-        {/* Instructions */}
-        <div className="bg-white/5 rounded-xl border border-white/10 p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-3 p-4 rounded-lg bg-black/20 border border-white/10">
-              <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
-                <Target className="w-5 h-5 text-blue-400" />
+              <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
+                <Target className="w-5 h-5 text-amber-400" />
               </div>
               <div>
                 <h3 className="text-white font-medium mb-1">Target Feature</h3>
@@ -140,8 +138,8 @@ export function FeatureConfigForm({
             </div>
 
             <div className="flex items-start gap-3 p-4 rounded-lg bg-black/20 border border-white/10">
-              <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
-                <Lock className="w-5 h-5 text-amber-400" />
+              <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
+                <Lock className="w-5 h-5 text-blue-400" />
               </div>
               <div>
                 <h3 className="text-white font-medium mb-1">Frozen Features</h3>
@@ -166,13 +164,13 @@ export function FeatureConfigForm({
               <div className="flex-1 text-sm font-medium text-white/60">Feature Name</div>
               <div className="text-sm font-medium text-white/60 text-center w-20">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Target className="w-4 h-4 text-blue-400" />
+                  <Target className="w-4 h-4 text-amber-400" />
                   <span>Target</span>
                 </div>
               </div>
               <div className="text-sm font-medium text-white/60 text-center w-20">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Lock className="w-4 h-4 text-amber-400" />
+                  <Lock className="w-4 h-4 text-blue-400" />
                   <span>Freeze</span>
                 </div>
               </div>
@@ -260,7 +258,7 @@ export function FeatureConfigForm({
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col gap-3 text-sm text-white/60 sm:flex-row sm:items-center sm:gap-6">
               <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-blue-400" />
+                <Target className="w-4 h-4 text-amber-400" />
                 <span>
                   Target:{' '}
                   {targetFeature ? (
@@ -272,7 +270,7 @@ export function FeatureConfigForm({
               </div>
               {frozenFeatures.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-amber-400" />
+                  <Lock className="w-4 h-4 text-blue-400" />
                   <span>
                     {frozenFeatures.length} frozen feature{frozenFeatures.length !== 1 ? 's' : ''}
                   </span>
