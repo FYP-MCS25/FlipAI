@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnalysisSidebar } from './AnalysisSidebar';
 import { AnalysisOutput } from './AnalysisOutput';
 import { EmptyAnalysisState } from './EmptyAnalysisState';
@@ -111,36 +111,31 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
 
   // TODO(api): Replace with datasets fetched for the signed-in user from backend/database.
   // Purpose: Populate "Choose existing dataset" modal in local demo mode.
-  const [existingDatasets] = useState<Dataset[]>([
-    { 
-      id: 'd1', 
-      name: 'customer_churn.csv', 
-      uploadDate: new Date('2026-03-10'), 
-      rowCount: 7043,
-      features: ['Churn', 'Tenure (months)', 'Monthly Charges', 'Contract Type', 'Tech Support', 'Online Security', 'Payment Method', 'Internet Service']
-    },
-    { 
-      id: 'd2', 
-      name: 'loan_approval.csv', 
-      uploadDate: new Date('2026-03-09'), 
-      rowCount: 15234,
-      features: ['Loan Approved', 'Credit Score', 'Debt-to-Income Ratio', 'Employment Length', 'Annual Income', 'Loan Amount', 'Home Ownership', 'Marriage', 'Race', 'hello', 'bla', 'number of children']
-    },
-    { 
-      id: 'd3', 
-      name: 'employee_attrition.csv', 
-      uploadDate: new Date('2026-03-08'), 
-      rowCount: 1470,
-      features: ['Attrition', 'Age', 'Department', 'Job Role', 'Monthly Income', 'Years at Company', 'Work-Life Balance', 'Job Satisfaction']
-    },
-    { 
-      id: 'd4', 
-      name: 'house_prices.csv', 
-      uploadDate: new Date('2026-03-07'), 
-      rowCount: 21613,
-      features: ['Sale Price', 'Square Footage', 'Bedrooms', 'Bathrooms', 'Year Built', 'Lot Size', 'Neighborhood', 'Garage Size']
-    },
-  ]);
+  const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
+
+  useEffect(() => {
+    const fetchDatasets = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/datasets/');
+        if (!res.ok) throw new Error('Failed to fetch datasets');
+
+        const data = await res.json(); // API returns {count, results, ...}
+        const datasets: Dataset[] = data.results.map((d: any) => ({
+          id: d.id.toString(),
+          name: d.name,
+          uploadDate: new Date(d.uploaded_at),
+          rowCount: d.num_rows,
+          features: d.column_names, // optional
+        }));
+
+        setExistingDatasets(datasets);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchDatasets();
+  }, []);
 
   const [activeAnalysis, setActiveAnalysis] = useState<string | null>('1');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -171,17 +166,28 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
     }
   };
 
-  const handleUploadDataset = (file: File) => {
-    // TODO(api): Replace mock feature list with parsed schema from upload ingestion service.
-    // Purpose: Keep feature configuration flow testable before file-processing backend exists.
-    const mockFeatures = ['Outcome', 'Feature_1', 'Feature_2', 'Feature_3', 'Feature_4', 'Feature_5'];
-    setPendingDataset({ 
-      name: file.name, 
-      features: mockFeatures, 
-      source: 'upload',
-      file 
-    });
-    setUploadModalOpen(false);
+  const handleUploadDataset = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/datasets/', {  // just POST to /datasets/
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const dataset = await response.json();
+      console.log('Saved dataset:', dataset);
+      setPendingDataset({
+        name: dataset.name,
+        features: dataset.column_names || [],
+        source: 'upload',
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleChooseExisting = () => {

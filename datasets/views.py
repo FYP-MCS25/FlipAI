@@ -20,7 +20,9 @@ class DatasetViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # TODO: Add user authentication
-        serializer.save()
+        dataset = serializer.save()
+        dataset.name = dataset.file.name.split('/')[-1]  # Use CSV filename as name
+        dataset.process_file()  # Fill num_rows, num_columns, column_names, column_types
     
     @action(detail=True, methods=['get'])
     def statistics(self, request, pk=None):

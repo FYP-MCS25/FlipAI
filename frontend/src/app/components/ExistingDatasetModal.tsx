@@ -65,9 +65,9 @@ export function ExistingDatasetModal({
                       <div className="flex items-center gap-4 text-sm text-white/60">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          {dataset.uploadDate.toLocaleDateString()}
+                          {dataset.uploadDate ? dataset.uploadDate.toLocaleDateString() : 'N/A'}
                         </span>
-                        <span>{dataset.rowCount.toLocaleString()} rows</span>
+                        <span>{dataset.rowCount != null ? dataset.rowCount.toLocaleString() : 'N/A'} rows</span>
                       </div>
                     </div>
                   </div>

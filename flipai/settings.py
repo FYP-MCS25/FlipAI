@@ -177,7 +177,10 @@ SPECTACULAR_SETTINGS = {
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    "http://localhost:5173",
 ])
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 # File Upload Settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = env.int('MAX_UPLOAD_SIZE', default=52428800)  # 50MB

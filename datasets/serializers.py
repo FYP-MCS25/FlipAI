@@ -18,6 +18,7 @@ class DatasetSerializer(serializers.ModelSerializer):
 
 
 class DatasetUploadSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(read_only=True)  # auto-filled from file
     class Meta:
         model = Dataset
         fields = ['name', 'description', 'file']
