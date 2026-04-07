@@ -57,14 +57,11 @@ class Dataset(models.Model):
                 first_row = rows[0]
                 types = {}
                 for col, val in first_row.items():
-                    if val.lower() in ['true', 'false']:
-                        types[col] = 'bool'
-                    else:
-                        try:
-                            int(val)
-                            types[col] = 'int'
-                        except ValueError:
-                            types[col] = 'str'
+                    try:
+                        float(val)
+                        types[col] = 'float'
+                    except ValueError:
+                        types[col] = 'str'
                 self.column_types = types
             else:
                 self.column_types = {col: 'str' for col in self.column_names}

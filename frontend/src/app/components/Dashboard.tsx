@@ -5,6 +5,7 @@ import { EmptyAnalysisState } from './EmptyAnalysisState';
 import { UploadModal } from './UploadModal';
 import { ExistingDatasetModal } from './ExistingDatasetModal';
 import { FeatureConfigForm } from './FeatureConfigForm';
+import { CounterfactualConfigForm, FeatureMeta, CounterfactualConfig } from './CounterfactualConfigForm';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
 
@@ -34,11 +35,33 @@ interface Dataset {
   uploadDate: Date;
   rowCount: number;
   features?: string[];
+  // column_types from API: maps column name → dtype string e.g. 'int64', 'float64', 'object'
+  featureTypes?: Record<string, string>;
+}
+
+// ─── Step tracking for the multi-step new-analysis flow ───────────────────────
+//
+//  null                   → no pending analysis (show existing or empty state)
+//  'feature-config'       → FeatureConfigForm  (pick target + frozen features)
+//  'counterfactual-config'→ CounterfactualConfigForm (outcome condition + instance values)
+//
+type AnalysisStep = 'feature-config' | 'counterfactual-config';
+
+interface PendingDataset {
+  name: string;
+  features: string[];      // plain column names list
+  featureMetas: FeatureMeta[]; // enriched with type info from API
+  source: 'upload' | 'existing';
+  file?: File;
+}
+
+interface PendingConfig {
+  targetFeature: string;
+  frozenFeatures: string[];
 }
 
 export function Dashboard() {
   // TODO(api): Replace this seeded analysis history with data loaded from backend storage.
-  // Purpose: Provide demo analysis records and output content before API integration.
   const [analyses, setAnalyses] = useState<Analysis[]>([
     {
       id: '1',
@@ -56,7 +79,7 @@ Interestingly, customers with month-to-month contracts show significantly higher
 
 Additional factors such as the presence of tech support and online security services also play important roles in customer retention. The model indicates that improving service quality in these areas could substantially decrease churn rates.`,
         shapAnalysis: {
-          summary: 'SHAP (SHapley Additive exPlanations) values show the contribution of each feature to the model\'s predictions. Higher values indicate stronger influence on the prediction outcome.',
+          summary: "SHAP (SHapley Additive exPlanations) values show the contribution of each feature to the model's predictions. Higher values indicate stronger influence on the prediction outcome.",
           topFeatures: [
             { name: 'Tenure (months)', importance: 0.92 },
             { name: 'Monthly Charges', importance: 0.78 },
@@ -110,7 +133,6 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
   ]);
 
   // TODO(api): Replace with datasets fetched for the signed-in user from backend/database.
-  // Purpose: Populate "Choose existing dataset" modal in local demo mode.
   const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
 
   useEffect(() => {
@@ -118,22 +140,20 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
       try {
         const res = await fetch('http://localhost:8000/api/v1/datasets/');
         if (!res.ok) throw new Error('Failed to fetch datasets');
-
-        const data = await res.json(); // API returns {count, results, ...}
+        const data = await res.json();
         const datasets: Dataset[] = data.results.map((d: any) => ({
           id: d.id.toString(),
           name: d.name,
           uploadDate: new Date(d.uploaded_at),
           rowCount: d.num_rows,
-          features: d.column_names, // optional
+          features: d.column_names,
+          featureTypes: d.column_types, // e.g. { age: 'int64', income: 'float64', gender: 'object' }
         }));
-
         setExistingDatasets(datasets);
       } catch (err) {
         console.error(err);
       }
     };
-
     fetchDatasets();
   }, []);
 
@@ -143,24 +163,68 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
   const [existingDatasetModalOpen, setExistingDatasetModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
-  // Store pending dataset info for feature configuration
-  const [pendingDataset, setPendingDataset] = useState<{ name: string; features: string[]; source: 'upload' | 'existing'; file?: File } | null>(null);
+  // ── Multi-step flow state ──
+  const [analysisStep, setAnalysisStep] = useState<AnalysisStep | null>(null);
+  const [pendingDataset, setPendingDataset] = useState<PendingDataset | null>(null);
+  const [pendingConfig, setPendingConfig] = useState<PendingConfig | null>(null);
 
   // TODO(auth): Replace with authenticated user profile returned by auth/session API.
-  // Purpose: Show profile modal data while auth backend is not connected.
-  const [user] = useState({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-  });
+  const [user] = useState({ name: 'John Doe', email: 'john.doe@example.com' });
 
-  const currentAnalysis = analyses.find((analysis) => analysis.id === activeAnalysis);
+  const currentAnalysis = analyses.find((a) => a.id === activeAnalysis);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /** Reset all pending flow state and go back to the normal view. */
+  const clearPendingFlow = () => {
+    setPendingDataset(null);
+    setPendingConfig(null);
+    setAnalysisStep(null);
+  };
+
+  /**
+   * Build FeatureMeta array from column names + the column_types map returned by the API.
+   *
+   * API dtype strings (pandas convention) are mapped as:
+   *   int8 / int16 / int32 / int64  → 'integer'
+   *   float32 / float64             → 'float'
+   *   object / string / category    → 'string'
+   *
+   * Falls back to 'integer' for any unrecognised dtype so the UI never breaks.
+   */
+  const buildFeatureMetas = (
+    featureNames: string[],
+    columnTypes?: Record<string, string>,  // { col_name: 'int64' | 'float64' | 'object' | ... }
+    columnValues?: Record<string, string[]>, // optional { col_name: ['val1', 'val2'] } for string cols
+  ): FeatureMeta[] => {
+    return featureNames.map((name) => {
+      const raw = columnTypes?.[name]?.toLowerCase() ?? '';
+      const type: FeatureMeta['type'] =
+        raw.startsWith('int')
+          ? 'integer'
+          : raw.startsWith('float')
+          ? 'float'
+          : raw === 'str'
+          ? 'string'
+          : 'string'; // safe fallback
+
+      return {
+        name,
+        type,
+        possibleValues: type === 'string' ? (columnValues?.[name] ?? []) : undefined,
+      };
+    });
+  };
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSelectAnalysis = (analysisId: string) => {
+    clearPendingFlow();
     setActiveAnalysis(analysisId);
   };
 
   const handleDeleteAnalysis = (analysisId: string) => {
-    setAnalyses(analyses.filter((analysis) => analysis.id !== analysisId));
+    setAnalyses(analyses.filter((a) => a.id !== analysisId));
     if (activeAnalysis === analysisId) {
       setActiveAnalysis(analyses.length > 1 ? analyses[0].id : null);
     }
@@ -169,22 +233,23 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
   const handleUploadDataset = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-
     try {
-      const response = await fetch('http://localhost:8000/api/v1/datasets/', {  // just POST to /datasets/
+      const response = await fetch('http://localhost:8000/api/v1/datasets/', {
         method: 'POST',
         body: formData,
       });
-
       if (!response.ok) throw new Error('Upload failed');
-
       const dataset = await response.json();
-      console.log('Saved dataset:', dataset);
+      const featureNames: string[] = dataset.column_names || [];
+      console.log('Uploaded dataset:', dataset);
       setPendingDataset({
         name: dataset.name,
-        features: dataset.column_names || [],
+        features: featureNames,
+        featureMetas: buildFeatureMetas(featureNames, dataset.column_types, dataset.column_values),
         source: 'upload',
       });
+      setAnalysisStep('feature-config');
+      setUploadModalOpen(false);
     } catch (err) {
       console.error(err);
     }
@@ -198,26 +263,35 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
     if (dataset) {
-      // Show feature config form in main area
-      // TODO(api): Remove hardcoded fallback once dataset metadata always includes feature schema.
-      // Purpose: Prevent UI breakage for incomplete mock dataset entries during development.
-      const features = dataset.features || ['Feature_1', 'Feature_2', 'Feature_3'];
-      setPendingDataset({ 
-        name: dataset.name, 
-        features, 
-        source: 'existing' 
+      const featureNames = dataset.features || ['Feature_1', 'Feature_2', 'Feature_3'];
+      setPendingDataset({
+        name: dataset.name,
+        features: featureNames,
+        // featureTypes stored from API: { col_name: 'int64' | 'float64' | 'object' | ... }
+        featureMetas: buildFeatureMetas(featureNames, dataset.featureTypes),
+        source: 'existing',
       });
+      setAnalysisStep('feature-config');
       setExistingDatasetModalOpen(false);
     }
   };
 
+  /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
   const handleFeatureConfigConfirm = (config: { targetFeature: string; frozenFeatures: string[] }) => {
-    if (!pendingDataset) return;
+    setPendingConfig(config);
+    setAnalysisStep('counterfactual-config');
+  };
 
-    // TODO(api): Replace locally synthesized analysis payload with backend job submission and result retrieval.
-    // Purpose: Simulate completed SHAP/DiCE output so the dashboard flow works without model services.
+  /** Called when user clicks "Generate Counterfactuals" in CounterfactualConfigForm. */
+  const handleCounterfactualConfigSubmit = (cfConfig: CounterfactualConfig) => {
+    if (!pendingDataset || !pendingConfig) return;
+
+    // TODO(api): Replace locally synthesized analysis payload with a real backend job submission.
+    //            Pass cfConfig.targetCondition + cfConfig.instanceValues to your model service.
+    const { targetFeature, frozenFeatures } = pendingConfig;
+    const { targetCondition, instanceValues } = cfConfig;
+
     const newAnalysis: Analysis = {
-      // TODO(db): Use backend-generated analysis IDs to keep client/server records consistent.
       id: Date.now().toString(),
       datasetName: pendingDataset.name,
       modelName: 'AutoML',
@@ -225,28 +299,25 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
       data: {
         datasetName: pendingDataset.name,
         modelName: 'AutoML Classifier',
-        llmSummary: `Analysis for ${pendingDataset.name} is being processed with counterfactual generation.\n\n**Configuration:**\n- Target Feature: ${config.targetFeature}\n- Frozen Features: ${config.frozenFeatures.length > 0 ? config.frozenFeatures.join(', ') : 'None'}\n\nThe system will analyze feature importance using SHAP and generate counterfactual explanations with DiCE-ML, respecting the frozen features you specified. Frozen features will remain constant during counterfactual generation, while other features will be optimized to flip the target prediction.`,
+        llmSummary: `Analysis for **${pendingDataset.name}** is being processed.\n\n**Configuration:**\n- Target Feature: ${targetFeature}\n- Outcome Condition: ${targetCondition.feature} ${targetCondition.op} ${targetCondition.value}\n- Frozen Features: ${frozenFeatures.length > 0 ? frozenFeatures.join(', ') : 'None'}\n\nThe system will analyze feature importance using SHAP and generate counterfactual explanations with DiCE-ML. Frozen features remain constant; all other features are optimized to flip the prediction toward the specified condition.`,
         shapAnalysis: {
-          // TODO(model): Replace synthetic feature importances with SHAP output from backend explainability service.
-          summary: `Feature importance analysis for predicting ${config.targetFeature}. SHAP values show how each feature contributes to the model's predictions.`,
+          // TODO(model): Replace with real SHAP values from backend explainability service.
+          summary: `Feature importance analysis for predicting ${targetFeature}. SHAP values show how each feature contributes to the model's predictions.`,
           topFeatures: pendingDataset.features
-            .filter(f => f !== config.targetFeature)
+            .filter((f) => f !== targetFeature)
             .slice(0, 5)
-            .map((f, i) => ({ 
-              name: f, 
-              importance: 0.95 - (i * 0.1) 
-            })),
+            .map((f, i) => ({ name: f, importance: 0.95 - i * 0.1 })),
         },
         diceAnalysis: {
-          // TODO(model): Replace placeholder counterfactual values with DiCE results returned by backend service.
-          summary: `Counterfactual explanations showing minimal changes needed to flip ${config.targetFeature}. ${config.frozenFeatures.length > 0 ? `Features kept constant: ${config.frozenFeatures.join(', ')}.` : 'All features are allowed to vary.'}`,
+          // TODO(model): Replace with real DiCE counterfactuals from backend service.
+          summary: `Counterfactual explanations showing minimal changes needed so that ${targetCondition.feature} ${targetCondition.op} ${targetCondition.value}. ${frozenFeatures.length > 0 ? `Features kept constant: ${frozenFeatures.join(', ')}.` : 'All features are allowed to vary.'}`,
           counterfactuals: pendingDataset.features
-            .filter(f => f !== config.targetFeature && !config.frozenFeatures.includes(f))
+            .filter((f) => f !== targetFeature && !frozenFeatures.includes(f))
             .slice(0, 4)
-            .map((f) => ({ 
-              feature: f, 
-              original: 'Current Value', 
-              suggested: 'Suggested Value' 
+            .map((f) => ({
+              feature: f,
+              original: instanceValues[f] ?? 'Current Value',
+              suggested: 'Suggested Value',
             })),
         },
       },
@@ -254,16 +325,47 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
 
     setAnalyses([newAnalysis, ...analyses]);
     setActiveAnalysis(newAnalysis.id);
-    setPendingDataset(null);
+    clearPendingFlow();
   };
 
-  const handleFeatureConfigClose = () => {
-    setPendingDataset(null);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const renderMainContent = () => {
+    // Step 1 — feature config
+    if (analysisStep === 'feature-config' && pendingDataset) {
+      return (
+        <FeatureConfigForm
+          datasetName={pendingDataset.name}
+          modelName="AutoML Classifier"
+          features={pendingDataset.features}
+          onConfirm={handleFeatureConfigConfirm}
+        />
+      );
+    }
+
+    // Step 2 — counterfactual outcome + instance values
+    if (analysisStep === 'counterfactual-config' && pendingDataset && pendingConfig) {
+      return (
+        <CounterfactualConfigForm
+          datasetName={pendingDataset.name}
+          targetFeature={pendingConfig.targetFeature}
+          frozenFeatures={pendingConfig.frozenFeatures}
+          featureMetas={pendingDataset.featureMetas}
+          onBack={() => setAnalysisStep('feature-config')}
+          onSubmit={handleCounterfactualConfigSubmit}
+        />
+      );
+    }
+
+    // Normal states
+    if (currentAnalysis) return <AnalysisOutput analysis={currentAnalysis.data} />;
+    return <EmptyAnalysisState onOpenUpload={() => setUploadModalOpen(true)} />;
   };
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="h-dvh w-full flex bg-black text-white overflow-hidden">
-      {/* Sidebar */}
       {sidebarOpen && (
         <AnalysisSidebar
           analyses={analyses}
@@ -275,7 +377,6 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
         />
       )}
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10 flex-shrink-0">
@@ -297,10 +398,14 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
               </>
             )}
             <h2 className="text-lg font-medium text-white/90">
-              {currentAnalysis?.datasetName || 'Counterfactual Generation Tool'}
+              {analysisStep === 'feature-config' && pendingDataset
+                ? pendingDataset.name
+                : analysisStep === 'counterfactual-config' && pendingDataset
+                ? pendingDataset.name
+                : currentAnalysis?.datasetName || 'Counterfactual Generation Tool'}
             </h2>
           </div>
-          
+
           <button
             onClick={() => setUploadModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -311,18 +416,7 @@ The counterfactual analysis reveals actionable steps for applicants: improving c
         </div>
 
         {/* Content */}
-        {pendingDataset ? (
-          <FeatureConfigForm
-            datasetName={pendingDataset.name}
-            modelName="AutoML Classifier"
-            features={pendingDataset.features}
-            onConfirm={handleFeatureConfigConfirm}
-          />
-        ) : currentAnalysis ? (
-          <AnalysisOutput analysis={currentAnalysis.data} />
-        ) : (
-          <EmptyAnalysisState onOpenUpload={() => setUploadModalOpen(true)} />
-        )}
+        {renderMainContent()}
       </div>
 
       {/* Modals */}
