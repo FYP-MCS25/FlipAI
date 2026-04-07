@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'models',
     'predictions',
     'api',
+    'analysis',
 ]
 
 MIDDLEWARE = [

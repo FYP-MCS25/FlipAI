@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 
 interface FeatureConfigFormProps {
   datasetName: string;
-  modelName: string;
+  datasetId: string;
   features: string[];
   onConfirm: (config: { targetFeature: string; frozenFeatures: string[] }) => void;
 }
@@ -12,7 +12,7 @@ const FEATURES_PER_PAGE = 10;
 
 export function FeatureConfigForm({
   datasetName,
-  modelName,
+  datasetId,
   features,
   onConfirm,
 }: FeatureConfigFormProps) {
@@ -86,12 +86,44 @@ export function FeatureConfigForm({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!targetFeature) {
       alert('Please select a target feature');
       return;
     }
-    onConfirm({ targetFeature, frozenFeatures });
+
+    const payload = {
+      target_feature: targetFeature,
+      frozen_features: frozenFeatures,
+      dataset: Number(datasetId),
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/analyses/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        console.error('Failed to save analysis', errData);
+        alert('Failed to start analysis. Check console.');
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Analysis saved:', data);
+      
+      // Optionally, call the onConfirm callback
+      onConfirm({ targetFeature, frozenFeatures });
+
+    } catch (error) {
+      console.error('Error while saving analysis:', error);
+      alert('Error while starting analysis. Check console.');
+    }
   };
 
   return (
@@ -100,7 +132,6 @@ export function FeatureConfigForm({
         {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-white">{datasetName}</h1>
-          <p className="text-white/60">Model: {modelName}</p>
         </div>
 
         {/* Search */}

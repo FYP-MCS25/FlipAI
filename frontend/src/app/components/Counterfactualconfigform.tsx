@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { ArrowLeft, Target, Lock, FlaskConical } from 'lucide-react';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type FeatureType = 'integer' | 'float' | 'string';
+// --- Types --------------------------------------------------------------------
 
 export interface FeatureMeta {
   name: string;
-  type: FeatureType;
+  type: string;
   possibleValues?: string[]; // required when type === 'string'
 }
 
@@ -29,7 +27,7 @@ interface CounterfactualConfigFormProps {
   onSubmit: (config: CounterfactualConfig) => void;
 }
 
-// ─── Numeric operator button group ────────────────────────────────────────────
+// --- Numeric operator button group --------------------------------------------
 
 const NUMERIC_OPS = ['=', '<', '>', '<=', '>='] as const;
 type NumericOp = typeof NUMERIC_OPS[number];
@@ -56,7 +54,7 @@ function OpSelector({ value, onChange }: { value: NumericOp; onChange: (op: Nume
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// --- Main component -----------------------------------------------------------
 
 export function CounterfactualConfigForm({
   datasetName,
@@ -69,23 +67,23 @@ export function CounterfactualConfigForm({
   const targetMeta = featureMetas.find((f) => f.name === targetFeature)!;
   const isNumericTarget = targetMeta?.type === 'integer' || targetMeta?.type === 'float';
 
-  // ── Outcome condition state ──
+  // -- Outcome condition state --
   const [op, setOp] = useState<NumericOp>('=');
   const [targetValue, setTargetValue] = useState('');
 
-  // ── Instance values state (all features except target) ──
+  // -- Instance values state (all features except target) --
   const instanceFeatures = featureMetas.filter((f) => f.name !== targetFeature);
   const [instanceValues, setInstanceValues] = useState<Record<string, string>>(
     Object.fromEntries(instanceFeatures.map((f) => [f.name, '']))
   );
 
-  // ✅ NEW: upload status
+  // upload status
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
   const setField = (name: string, val: string) =>
     setInstanceValues((prev) => ({ ...prev, [name]: val }));
 
-  // ✅ NEW: CSV upload handler
+  // CSV upload handler
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -100,7 +98,7 @@ export function CounterfactualConfigForm({
     reader.readAsText(file);
   };
 
-  // ✅ NEW: CSV parser
+  // CSV parser
   const parseCSV = (text: string) => {
     const lines = text.trim().split('\n');
 
@@ -142,7 +140,7 @@ export function CounterfactualConfigForm({
     setUploadStatus('CSV loaded successfully');
   };
 
-  // ── Validation ──
+  // -- Validation --
   const conditionValid = targetValue.trim() !== '';
   const allFilled = instanceFeatures.every((f) => instanceValues[f.name]?.trim() !== '');
   const canSubmit = conditionValid && allFilled;
@@ -155,7 +153,7 @@ export function CounterfactualConfigForm({
     });
   };
 
-  // ── Helpers ──
+  // -- Helpers --
   const isFrozen = (name: string) => frozenFeatures.includes(name);
 
   const renderInstanceInput = (meta: FeatureMeta) => {
@@ -169,7 +167,7 @@ export function CounterfactualConfigForm({
         step={meta.type === 'float' ? 'any' : '1'}
         value={instanceValues[meta.name]}
         onChange={(e) => setField(meta.name, e.target.value)}
-        placeholder={`Enter ${meta.type} value…`}
+        placeholder={`Enter ${meta.type} value...`}
         className={baseInput}
       />
     );
@@ -179,7 +177,7 @@ export function CounterfactualConfigForm({
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-3xl mx-auto p-8 space-y-10">
 
-        {/* ── Page header ── */}
+        {/* -- Page header -- */}
         <div className="flex items-start gap-4">
           <button
             type="button"
@@ -197,7 +195,7 @@ export function CounterfactualConfigForm({
           </div>
         </div>
 
-        {/* ── Section 1: Target outcome condition ── */}
+        {/* -- Section 1: Target outcome condition -- */}
         <section className="space-y-4">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-amber-500/15">
@@ -227,7 +225,7 @@ export function CounterfactualConfigForm({
                   step={targetMeta?.type === 'float' ? 'any' : '1'}
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
-                  placeholder="Enter target value…"
+                  placeholder="Enter target value..."
                   className="
                     flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5
                     text-white placeholder:text-white/25 font-mono text-sm
@@ -244,7 +242,7 @@ export function CounterfactualConfigForm({
                   type="text"
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
-                  placeholder="Enter target value…"
+                  placeholder="Enter target value..."
                   className="
                     flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5
                     text-white placeholder:text-white/25 font-mono text-sm
@@ -266,7 +264,7 @@ export function CounterfactualConfigForm({
           </div>
         </section>
 
-        {/* ── Section 2: Instance feature values ── */}
+        {/* -- Section 2: Instance feature values -- */}
         <section className="space-y-4">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-blue-500/15">
@@ -280,7 +278,7 @@ export function CounterfactualConfigForm({
             </div>
           </div>
 
-          {/* ✅ NEW: CSV upload UI */}
+          {/* CSV upload UI */}
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 text-sm text-white/70">
               Upload CSV
@@ -318,7 +316,7 @@ export function CounterfactualConfigForm({
                     {/* Feature label */}
                     <div className="flex items-center gap-2 min-w-0">
                       {frozen && (
-                        <span title="Frozen — value won't change during generation">
+                        <span title="Frozen - value won't change during generation">
                         <Lock className="w-3.5 h-3.5 text-blue-400/70 shrink-0" />
                         </span>
                       )}
@@ -343,18 +341,18 @@ export function CounterfactualConfigForm({
           </div>
         </section>
 
-        {/* ── Submit bar ── */}
+        {/* -- Submit bar -- */}
         <div className="sticky bottom-0 -mx-8 px-8 pb-8 pt-4 bg-gradient-to-t from-black via-black/90 to-transparent">
           <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur">
             <div className="text-sm text-white/40 space-y-0.5">
               {!conditionValid && (
-                <p className="text-amber-400/70">⚠ Set a target outcome condition above.</p>
+                <p className="text-amber-400/70"> Set a target outcome condition above.</p>
               )}
               {conditionValid && !allFilled && (
-                <p className="text-amber-400/70">⚠ Fill in all instance feature values.</p>
+                <p className="text-amber-400/70"> Fill in all instance feature values.</p>
               )}
               {canSubmit && (
-                <p className="text-emerald-400/80">✓ Ready to generate counterfactuals.</p>
+                <p className="text-emerald-400/80"> Ready to generate counterfactuals.</p>
               )}
             </div>
             <button
