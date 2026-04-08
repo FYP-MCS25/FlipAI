@@ -35,6 +35,10 @@ class Dataset(models.Model):
     def get_feature_columns(self):
         """Get all feature columns (non-target) for this dataset"""
         return self.columns.filter(is_feature=True, is_target=False)
+    
+    def get_categorical_columns(self):
+        """Get all categorical/binary columns with their unique values for dropdowns"""
+        return self.columns.filter(data_type__in=['categorical', 'binary']).exclude(unique_values__isnull=True)
 
 
 class DatasetColumn(models.Model):
@@ -95,4 +99,17 @@ class DatasetColumn(models.Model):
                     f"Dataset '{self.dataset.name}' already has a target column: "
                     f"'{existing_targets.first().name}'. Only one target column is allowed per dataset."
                 )
+    
+    def is_categorical(self):
+        """Check if this column is categorical (includes binary)"""
+        return self.data_type in ['categorical', 'binary']
+    
+    def get_dropdown_values(self):
+        """
+        Get values suitable for frontend dropdown menus.
+        Returns unique values for categorical/binary columns, None for others.
+        """
+        if self.is_categorical() and self.unique_values:
+            return self.unique_values
+        return None
 
