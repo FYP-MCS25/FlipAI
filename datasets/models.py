@@ -27,15 +27,32 @@ class Dataset(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def get_target_column(self):
+        """Get the target column for this dataset (if any)"""
+        return self.columns.filter(is_target=True).first()
+    
+    def get_feature_columns(self):
+        """Get all feature columns (non-target) for this dataset"""
+        return self.columns.filter(is_feature=True, is_target=False)
 
 
 class DatasetColumn(models.Model):
     """
     Model to store information about dataset columns
     """
+    FEATURE_TYPE_CHOICES = [
+        ('binary', 'Binary'),
+        ('categorical', 'Categorical'),
+        ('continuous', 'Continuous'),
+        ('datetime', 'DateTime'),
+        ('text', 'Text'),
+        ('unknown', 'Unknown'),
+    ]
+    
     dataset = models.ForeignKey(Dataset, on_delete=models.CASCADE, related_name='columns')
     name = models.CharField(max_length=255)
-    data_type = models.CharField(max_length=50)  # numeric, categorical, datetime, text
+    data_type = models.CharField(max_length=50, choices=FEATURE_TYPE_CHOICES, default='unknown')
     is_target = models.BooleanField(default=False)
     is_feature = models.BooleanField(default=True)
     
@@ -61,4 +78,21 @@ class DatasetColumn(models.Model):
     
     def __str__(self):
         return f"{self.dataset.name} - {self.name}"
+    
+    def clean(self):
+        """Validate that only one target column exists per dataset"""
+        from django.core.exceptions import ValidationError
+        
+        if self.is_target:
+            # Check if another column in this dataset is already marked as target
+            existing_targets = DatasetColumn.objects.filter(
+                dataset=self.dataset,
+                is_target=True
+            ).exclude(pk=self.pk)
+            
+            if existing_targets.exists():
+                raise ValidationError(
+                    f"Dataset '{self.dataset.name}' already has a target column: "
+                    f"'{existing_targets.first().name}'. Only one target column is allowed per dataset."
+                )
 

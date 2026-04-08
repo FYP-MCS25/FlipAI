@@ -10,32 +10,50 @@ import google.generativeai as genai
 
 def detect_column_types(df: pd.DataFrame) -> Dict[str, str]:
     """
-    Detect column types (numeric, categorical, datetime, text)
+    Detect granular feature types: binary, categorical, continuous, datetime, text
     
     Args:
         df: pandas DataFrame
         
     Returns:
-        Dictionary mapping column names to their types
+        Dictionary mapping column names to their feature types
     """
-    column_types = {}
+    feature_types = {}
     
     for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            column_types[col] = 'numeric'
-        elif pd.api.types.is_datetime64_any_dtype(df[col]):
-            column_types[col] = 'datetime'
+        num_unique = df[col].nunique()
+        
+        # DateTime detection
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            feature_types[col] = 'datetime'
+        
+        # Binary detection (2 unique values)
+        elif num_unique == 2:
+            feature_types[col] = 'binary'
+        
+        # Numeric columns
+        elif pd.api.types.is_numeric_dtype(df[col]):
+            # If numeric but has very few unique values, it's categorical
+            unique_ratio = num_unique / len(df)
+            if num_unique <= 10 or unique_ratio < 0.05:
+                feature_types[col] = 'categorical'
+            else:
+                feature_types[col] = 'continuous'
+        
+        # Object/String columns
         elif df[col].dtype == 'object':
             # Check if it's categorical or text
-            unique_ratio = df[col].nunique() / len(df)
-            if unique_ratio < 0.05:  # Less than 5% unique values
-                column_types[col] = 'categorical'
+            unique_ratio = num_unique / len(df)
+            # Categorical: limited distinct values
+            if num_unique <= 50 or unique_ratio < 0.05:
+                feature_types[col] = 'categorical'
             else:
-                column_types[col] = 'text'
+                feature_types[col] = 'text'
+        
         else:
-            column_types[col] = 'unknown'
+            feature_types[col] = 'unknown'
     
-    return column_types
+    return feature_types
 
 
 def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
