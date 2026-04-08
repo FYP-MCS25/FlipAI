@@ -136,10 +136,20 @@ export function Dashboard() {
     setActiveAnalysis(analysisId);
   };
 
-  const handleDeleteAnalysis = (analysisId: string) => {
-    setAnalyses(analyses.filter((a) => a.id !== analysisId));
-    if (activeAnalysis === analysisId) {
-      setActiveAnalysis(analyses.length > 1 ? analyses[0].id : null);
+  const handleDeleteAnalysis = async (analysisId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/analyses/${analysisId}/`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Delete failed');
+
+      const updatedAnalyses = analyses.filter((a) => a.id !== analysisId);
+      setAnalyses(updatedAnalyses);
+      if (activeAnalysis === analysisId) {
+        setActiveAnalysis(updatedAnalyses.length > 0 ? updatedAnalyses[0].id : null);
+      }
+    } catch (err) {
+      console.error('Error deleting analysis:', err);
     }
   };
 
