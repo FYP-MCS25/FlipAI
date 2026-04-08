@@ -102,7 +102,6 @@ class DatasetViewSet(viewsets.ModelViewSet):
             
             for col_name in metadata['column_names']:
                 col_type = metadata['column_types'].get(col_name, 'unknown')
-                stats = calculate_column_statistics(df, col_name)
                 description = feature_descriptions.get(col_name, '')
                 
                 # Determine if this is the target column
@@ -113,6 +112,9 @@ class DatasetViewSet(viewsets.ModelViewSet):
                 if uci_metadata and col_name in uci_metadata:
                     uci_col_meta = uci_metadata[col_name]
                     feature_type = map_uci_type_to_feature_type(uci_col_meta.get('type', ''))
+                
+                # Calculate statistics (pass feature_type for proper unique values collection)
+                stats = calculate_column_statistics(df, col_name, feature_type)
                 
                 DatasetColumn.objects.create(
                     dataset=dataset,

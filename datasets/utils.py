@@ -56,13 +56,14 @@ def detect_column_types(df: pd.DataFrame) -> Dict[str, str]:
     return feature_types
 
 
-def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
+def calculate_column_statistics(df: pd.DataFrame, col: str, feature_type: str = None) -> Dict:
     """
     Calculate statistics for a column
     
     Args:
         df: pandas DataFrame
         col: column name
+        feature_type: Type of feature ('binary', 'categorical', 'continuous', etc.)
         
     Returns:
         Dictionary with column statistics
@@ -72,6 +73,7 @@ def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
         'missing_percentage': float(df[col].isna().sum() / len(df) * 100),
     }
     
+    # Numeric statistics for continuous/numeric columns
     if pd.api.types.is_numeric_dtype(df[col]):
         stats.update({
             'min_value': float(df[col].min()) if not df[col].isna().all() else None,
@@ -80,10 +82,37 @@ def calculate_column_statistics(df: pd.DataFrame, col: str) -> Dict:
             'std_value': float(df[col].std()) if not df[col].isna().all() else None,
         })
     
-    if df[col].dtype == 'object' or pd.api.types.is_categorical_dtype(df[col]):
-        unique_values = df[col].dropna().unique().tolist()
+    # Collect unique values for categorical, binary, and object columns
+    # This is crucial for dropdown menus in the frontend
+    should_collect_unique = (
+        feature_type in ['categorical', 'binary'] or
+        df[col].dtype == 'object' or 
+        pd.api.types.is_categorical_dtype(df[col])
+    )
+    
+    if should_collect_unique:
+        unique_vals = df[col].dropna().unique()
+        
+        # Convert numpy types to native Python types for JSON serialization
+        unique_values_list = []
+        for val in unique_vals:
+            if pd.isna(val):
+                continue
+            # Convert numpy types to Python types
+            if isinstance(val, (np.integer, np.floating)):
+                unique_values_list.append(float(val) if isinstance(val, np.floating) else int(val))
+            else:
+                unique_values_list.append(str(val))
+        
+        # Sort for consistent ordering in dropdowns
+        try:
+            unique_values_list = sorted(unique_values_list)
+        except TypeError:
+            # If mixed types, keep original order
+            pass
+        
         stats.update({
-            'unique_values': unique_values[:100],  # Limit to 100 values
+            'unique_values': unique_values_list[:200],  # Increased limit for dropdowns
             'num_unique': int(df[col].nunique()),
         })
     
