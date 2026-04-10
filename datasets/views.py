@@ -58,7 +58,6 @@ class DatasetViewSet(viewsets.ModelViewSet):
             dataset.save()
             
             # Generate feature descriptions using LLM
-            print(f"🤖 Generating feature descriptions for {dataset.name}...")
             feature_descriptions = generate_feature_descriptions(
                 df,
                 metadata['column_names'],
@@ -69,12 +68,7 @@ class DatasetViewSet(viewsets.ModelViewSet):
             # Try to fetch UCI metadata if this is a known UCI dataset
             uci_metadata = None
             if is_known_uci_dataset(dataset.name):
-                print(f"📊 Fetching UCI metadata for {dataset.name}...")
                 uci_metadata = get_uci_metadata_for_dataset(dataset.name)
-                if uci_metadata:
-                    print(f"✅ Successfully fetched UCI metadata for {len(uci_metadata)} columns")
-                else:
-                    print(f"⚠️  Could not fetch UCI metadata, falling back to heuristics")
             
             # Create/update DatasetColumn records
             dataset.columns.all().delete()  # Clear existing columns first
@@ -94,11 +88,6 @@ class DatasetViewSet(viewsets.ModelViewSet):
                     if col_name.lower() in target_candidates:
                         target_column = col_name
                         break
-            
-            if target_column:
-                print(f"🎯 Identified target column: {target_column}")
-            else:
-                print(f"⚠️  No target column identified. Please set manually.")
             
             for col_name in metadata['column_names']:
                 col_type = metadata['column_types'].get(col_name, 'unknown')

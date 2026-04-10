@@ -181,7 +181,7 @@ def generate_feature_descriptions(
     
     # If no API key, return empty descriptions
     if not api_key:
-        print("⚠️  GEMINI_API_KEY not set. Skipping feature description generation.")
+        print("GEMINI_API_KEY not set. Skipping feature description generation.")
         return {col: "" for col in column_names}
     
     # Configure Gemini
@@ -243,7 +243,7 @@ Return ONLY the JSON object, no additional text."""
         return {col: descriptions.get(col, "") for col in column_names}
     
     except Exception as e:
-        print(f"⚠️  Error generating feature descriptions: {str(e)}")
+        print(f"Error generating feature descriptions: {str(e)}")
         # Return empty descriptions on error
         return {col: "" for col in column_names}
 

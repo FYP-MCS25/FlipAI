@@ -44,10 +44,10 @@ def fetch_uci_metadata(dataset_id: int) -> Optional[Dict]:
         return metadata
         
     except ImportError:
-        print("⚠️  ucimlrepo package not installed. Run: pip install ucimlrepo")
+        print("ucimlrepo package not installed. Run: pip install ucimlrepo")
         return None
     except Exception as e:
-        print(f"⚠️  Error fetching UCI metadata: {str(e)}")
+        print(f"Error fetching UCI metadata: {str(e)}")
         return None
 
 
