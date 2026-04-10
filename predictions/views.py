@@ -643,7 +643,6 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 for col in columns
                 if col.description  # Only include non-empty descriptions
             }
-            print(f"✅ Auto-fetched {len(feature_descriptions)} feature descriptions from dataset")
         else:
             feature_descriptions = feature_descriptions or {}
 
