@@ -22,9 +22,7 @@ class DatasetViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # TODO: Add user authentication
-        dataset = serializer.save()
-        dataset.name = dataset.file.name.split('/')[-1]  # Use CSV filename as name
-        dataset.process_file()  # Fill num_rows, num_columns, column_names, column_types
+        serializer.save()
     
     @action(detail=True, methods=['get'])
     def statistics(self, request, pk=None):
@@ -149,4 +147,3 @@ class DatasetViewSet(viewsets.ModelViewSet):
                 'status': 'processing failed',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-

@@ -6,7 +6,7 @@ import { ArrowLeft, Target, Lock, FlaskConical } from 'lucide-react';
 export interface FeatureMeta {
   name: string;
   type: string;
-  possibleValues?: string[]; // required when type === 'string'
+  possibleValues?: string[];
 }
 
 export interface CounterfactualConfig {
@@ -157,18 +157,37 @@ export function CounterfactualConfigForm({
   const isFrozen = (name: string) => frozenFeatures.includes(name);
 
   const renderInstanceInput = (meta: FeatureMeta) => {
-    const baseInput =
+    const baseClass =
       'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white ' +
       'placeholder:text-white/25 focus:outline-none focus:border-blue-500/60 transition-all';
 
+    if (meta.type === 'categorical' && meta.possibleValues?.length) {
+      return (
+        <select
+          value={instanceValues[meta.name]}
+          onChange={(e) => setField(meta.name, e.target.value)}
+          className={`${baseClass} appearance-none cursor-pointer bg-[#0d0d0d]`}
+        >
+          <option value="" disabled className="text-white/25">
+            Select a value...
+          </option>
+          {meta.possibleValues.map((val) => (
+            <option key={val} value={val} className="text-white bg-[#0d0d0d]">
+              {val}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     return (
       <input
-        type={meta.type === 'integer' || meta.type === 'float' ? 'number' : 'text'}
+        type="number"
         step={meta.type === 'float' ? 'any' : '1'}
         value={instanceValues[meta.name]}
         onChange={(e) => setField(meta.name, e.target.value)}
-        placeholder={`Enter ${meta.type} value...`}
-        className={baseInput}
+        placeholder="Enter value..."
+        className={baseClass}
       />
     );
   };
@@ -217,7 +236,31 @@ export function CounterfactualConfigForm({
               <span className="text-xs text-white/30 border-l border-white/15 pl-2 ml-0.5">{targetMeta?.type}</span>
             </div>
 
-            {isNumericTarget ? (
+            {targetMeta?.type === 'categorical' && targetMeta.possibleValues?.length ? (
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-mono font-bold text-white/35">
+                  =
+                </div>
+                <select
+                  value={targetValue}
+                  onChange={(e) => setTargetValue(e.target.value)}
+                  className="
+                    flex-1 bg-[#0d0d0d] border border-white/10 rounded-lg px-4 py-2.5
+                    text-white font-mono text-sm appearance-none cursor-pointer
+                    focus:outline-none focus:border-blue-500/60 transition-all
+                  "
+                >
+                  <option value="" disabled className="text-white/25">
+                    Select target value...
+                  </option>
+                  {targetMeta.possibleValues.map((val) => (
+                    <option key={val} value={val} className="text-white bg-[#0d0d0d]">
+                      {val}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : isNumericTarget ? (
               <div className="flex items-center gap-3">
                 <OpSelector value={op} onChange={setOp} />
                 <input

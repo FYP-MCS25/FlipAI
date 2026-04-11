@@ -246,4 +246,3 @@ Return ONLY the JSON object, no additional text."""
         print(f"⚠️  Error generating feature descriptions: {str(e)}")
         # Return empty descriptions on error
         return {col: "" for col in column_names}
-

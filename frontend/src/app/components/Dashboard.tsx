@@ -19,6 +19,24 @@ interface Analysis {
   createdAt: Date;
 }
 
+interface DatasetColumn {
+  id: number;
+  name: string;
+  data_type: string;
+  is_target: boolean;
+  is_feature: boolean;
+  description: string;
+  min_value: number | null;
+  max_value: number | null;
+  mean_value: number | null;
+  std_value: number | null;
+  unique_values: string[] | null;
+  num_unique: number | null;
+  missing_count: number;
+  missing_percentage: number;
+  dataset: number;
+}
+
 interface Dataset {
   id: string;
   name: string;
@@ -26,7 +44,7 @@ interface Dataset {
   uploadAt: Date;
   numRows: number;
   columnNames: string[];
-  columnTypes: Record<string, string>;
+  columns: DatasetColumn[];
 }
 
 // --- Step tracking for the multi-step new-analysis flow -----------------------
@@ -44,7 +62,7 @@ interface PendingDataset {
   uploadAt: Date;
   numRows: number;
   columnNames: string[];
-  columnTypes: Record<string, string>;
+  columns: DatasetColumn[];
   source: 'upload' | 'existing';
 }
 
@@ -94,7 +112,7 @@ export function Dashboard() {
           uploadAt: new Date(d.uploaded_at),
           numRows: d.num_rows,
           columnNames: d.column_names,
-          columnTypes: d.column_types,
+          columns: d.columns || [],
         }));
         setExistingDatasets(datasets);
       } catch (err) {
@@ -154,23 +172,39 @@ export function Dashboard() {
   };
 
   const handleUploadDataset = async (file: File) => {
+    const datasetName = file.name.split('_')[0].split('.')[0];
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('name', datasetName); // send it to backend
+
     try {
       const response = await fetch('http://localhost:8000/api/v1/datasets/', {
         method: 'POST',
         body: formData,
       });
-      if (!response.ok) throw new Error('Upload failed');
-      const dataset = await response.json();
-      console.log('Uploaded dataset:', dataset);
+
+      if (!response.ok) {
+        const errText = await response.text(); // See server error message
+        throw new Error(`Upload failed: ${errText}`);
+      }
+
+      const uploadedDataset = await response.json();
+
+      await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/process/`, {
+        method: 'POST',
+      });
+      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
+      const fullDataset = await fullDatasetRes.json();
+
+      console.log('Uploaded dataset:', fullDataset);
+
       setPendingDataset({
-        id: dataset.id.toString(),
-        numRows: dataset.num_rows,
-        columnNames: dataset.column_names,
-        columnTypes: dataset.column_types as Record<string, string>,
-        name: dataset.name,
-        uploadAt: dataset.uploaded_at,
+        id: fullDataset.id.toString(),
+        numRows: fullDataset.num_rows,
+        columnNames: fullDataset.column_names,
+        columns: fullDataset.columns ?? [],
+        name: fullDataset.name,
+        uploadAt: fullDataset.uploaded_at,
         source: 'upload',
       });
       setAnalysisStep('feature-config');
@@ -187,12 +221,13 @@ export function Dashboard() {
 
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
+    console.log('Selected dataset:', dataset);
     if (dataset) {
       setPendingDataset({
         id: dataset.id,
         numRows: dataset.numRows,
         columnNames: dataset.columnNames,
-        columnTypes: dataset.columnTypes,
+        columns: dataset.columns ?? [],
         name: dataset.name,
         uploadAt: dataset.uploadAt,
         source: 'existing',
@@ -232,11 +267,13 @@ export function Dashboard() {
   const renderMainContent = () => {
     // Step 1 - feature config
     if (analysisStep === 'feature-config' && pendingDataset) {
+      const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
       return (
         <FeatureConfigForm
           datasetName={pendingDataset.name}
           datasetId={pendingDataset.id}
           features={pendingDataset.columnNames}
+          targetFeature={targetFeature}
           onConfirm={handleFeatureConfigConfirm}
         />
       );
@@ -245,9 +282,10 @@ export function Dashboard() {
     // Step 2 - counterfactual outcome + instance values
     if (analysisStep === 'counterfactual-config' && pendingDataset && pendingConfig) {
       console.log('Configuring counterfactuals with dataset:', pendingDataset);
-      const featureMetas = pendingDataset.columnNames.map((name) => ({
-        name,
-        type: pendingDataset.columnTypes[name] as 'integer' | 'float' | 'string',
+      const featureMetas = pendingDataset.columns.map((col) => ({
+        name: col.name,
+        type: col.data_type as  'continuous' | 'categorical',
+        possibleValues: col.data_type === 'categorical' ? col.unique_values || [] : undefined,
       }));
 
       return (
