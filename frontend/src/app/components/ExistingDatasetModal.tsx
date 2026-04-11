@@ -1,14 +1,5 @@
 import { X, Database, Calendar } from 'lucide-react';
-
-interface Dataset {
-  id: string;
-  name: string;
-  file?: File;
-  uploadAt: Date;
-  numRows: number;
-  columnNames: string[];
-  columnTypes: Record<string, string>;
-}
+import { Dataset } from './Dashboard';
 
 interface ExistingDatasetModalProps {
   isOpen: boolean;

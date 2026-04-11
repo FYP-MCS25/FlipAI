@@ -37,7 +37,7 @@ interface DatasetColumn {
   dataset: number;
 }
 
-interface Dataset {
+export interface Dataset {
   id: string;
   name: string;
   file?: File;
