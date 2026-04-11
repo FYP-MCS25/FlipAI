@@ -1,7 +1,5 @@
 from django.db import models
 from django.contrib.auth.models import User
-import csv
-from pathlib import Path
 
 
 class Dataset(models.Model):
@@ -30,54 +28,40 @@ class Dataset(models.Model):
     def __str__(self):
         return self.name
     
-    def process_file(self):
-        """
-        Read the CSV, fill metadata: num_rows, num_columns, column_names, column_types
-        Only support str, int, bool for column types.
-        """
-        if not self.file:
-            return
-
-        # Full path to the uploaded file
-        file_path = self.file.path
-
-        with open(file_path, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-
-            # Number of rows
-            self.num_rows = len(rows)
-
-            # Column names
-            self.column_names = reader.fieldnames
-            self.num_columns = len(self.column_names)
-
-            # Infer types for each column based on first row
-            if rows:
-                first_row = rows[0]
-                types = {}
-                for col, val in first_row.items():
-                    try:
-                        float(val)
-                        types[col] = 'float'
-                    except ValueError:
-                        types[col] = 'str'
-                self.column_types = types
-            else:
-                self.column_types = {col: 'str' for col in self.column_names}
-
-        self.save()
+    def get_target_column(self):
+        """Get the target column for this dataset (if any)"""
+        return self.columns.filter(is_target=True).first()
+    
+    def get_feature_columns(self):
+        """Get all feature columns (non-target) for this dataset"""
+        return self.columns.filter(is_feature=True, is_target=False)
+    
+    def get_categorical_columns(self):
+        """Get all categorical/binary columns with their unique values for dropdowns"""
+        return self.columns.filter(data_type__in=['categorical', 'binary']).exclude(unique_values__isnull=True)
 
 
 class DatasetColumn(models.Model):
     """
     Model to store information about dataset columns
     """
+    FEATURE_TYPE_CHOICES = [
+        ('binary', 'Binary'),
+        ('categorical', 'Categorical'),
+        ('continuous', 'Continuous'),
+        ('datetime', 'DateTime'),
+        ('text', 'Text'),
+        ('unknown', 'Unknown'),
+    ]
+    
     dataset = models.ForeignKey(Dataset, on_delete=models.CASCADE, related_name='columns')
     name = models.CharField(max_length=255)
-    data_type = models.CharField(max_length=50)  # numeric, categorical, datetime, text
+    data_type = models.CharField(max_length=50, choices=FEATURE_TYPE_CHOICES, default='unknown')
     is_target = models.BooleanField(default=False)
     is_feature = models.BooleanField(default=True)
+    
+    # Human-readable description (LLM-generated during processing)
+    description = models.TextField(blank=True, default='')
     
     # Statistics for numeric columns
     min_value = models.FloatField(null=True, blank=True)
@@ -98,4 +82,33 @@ class DatasetColumn(models.Model):
     
     def __str__(self):
         return f"{self.dataset.name} - {self.name}"
-
+    
+    def clean(self):
+        """Validate that only one target column exists per dataset"""
+        from django.core.exceptions import ValidationError
+        
+        if self.is_target:
+            # Check if another column in this dataset is already marked as target
+            existing_targets = DatasetColumn.objects.filter(
+                dataset=self.dataset,
+                is_target=True
+            ).exclude(pk=self.pk)
+            
+            if existing_targets.exists():
+                raise ValidationError(
+                    f"Dataset '{self.dataset.name}' already has a target column: "
+                    f"'{existing_targets.first().name}'. Only one target column is allowed per dataset."
+                )
+    
+    def is_categorical(self):
+        """Check if this column is categorical (includes binary)"""
+        return self.data_type in ['categorical', 'binary']
+    
+    def get_dropdown_values(self):
+        """
+        Get values suitable for frontend dropdown menus.
+        Returns unique values for categorical/binary columns, None for others.
+        """
+        if self.is_categorical() and self.unique_values:
+            return self.unique_values
+        return None
