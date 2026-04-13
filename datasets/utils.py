@@ -27,30 +27,28 @@ def detect_column_types(df: pd.DataFrame) -> Dict[str, str]:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             feature_types[col] = 'datetime'
         
-        # Binary detection (2 unique values)
-        elif num_unique == 2:
-            feature_types[col] = 'binary'
-        
-        # Numeric columns
+        # Numeric columns (includes bool, int, float, Int64, etc.)
         elif pd.api.types.is_numeric_dtype(df[col]):
             # If numeric but has very few unique values, it's categorical
-            unique_ratio = num_unique / len(df)
-            if num_unique <= 10 or unique_ratio < 0.05:
+            if num_unique <= 20:
                 feature_types[col] = 'categorical'
             else:
                 feature_types[col] = 'continuous'
         
-        # Object/String columns
-        elif df[col].dtype == 'object':
+        # Pandas categorical dtype (when explicitly converted)
+        elif isinstance(df[col].dtype, pd.CategoricalDtype):
+            feature_types[col] = 'categorical'
+        
+        # Object/String columns (includes 'object' and 'string' dtypes)
+        elif df[col].dtype == 'object' or pd.api.types.is_string_dtype(df[col]):
             # Check if it's categorical or text
-            unique_ratio = num_unique / len(df)
-            # Categorical: limited distinct values
-            if num_unique <= 50 or unique_ratio < 0.05:
+            if num_unique <= 50:
                 feature_types[col] = 'categorical'
             else:
                 feature_types[col] = 'text'
         
         else:
+            # Rare edge cases: period, sparse, etc.
             feature_types[col] = 'unknown'
     
     return feature_types
@@ -85,7 +83,7 @@ def calculate_column_statistics(df: pd.DataFrame, col: str, feature_type: str = 
     # Collect unique values for categorical, binary, and object columns
     # This is crucial for dropdown menus in the frontend
     should_collect_unique = (
-        feature_type in ['categorical', 'binary'] or
+        feature_type in ['categorical'] or
         df[col].dtype == 'object' or 
         pd.api.types.is_categorical_dtype(df[col])
     )
