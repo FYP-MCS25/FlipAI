@@ -1,5 +1,11 @@
 import { X, Database, Calendar } from 'lucide-react';
-import { Dataset } from './Dashboard';
+
+interface Dataset {
+  id: string;
+  name: string;
+  uploadDate: Date;
+  rowCount: number;
+}
 
 interface ExistingDatasetModalProps {
   isOpen: boolean;
@@ -20,7 +26,7 @@ export function ExistingDatasetModal({
     onSelectDataset(datasetId);
     onClose();
   };
-  
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-2xl max-h-[80vh] flex flex-col">
@@ -59,9 +65,9 @@ export function ExistingDatasetModal({
                       <div className="flex items-center gap-4 text-sm text-white/60">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          {dataset.uploadAt != null ? new Date(dataset.uploadAt).toLocaleDateString() : 'N/A'}
+                          {dataset.uploadDate.toLocaleDateString()}
                         </span>
-                        <span>{dataset.numRows != null ? dataset.numRows.toLocaleString() : 'N/A'} rows</span>
+                        <span>{dataset.rowCount.toLocaleString()} rows</span>
                       </div>
                     </div>
                   </div>

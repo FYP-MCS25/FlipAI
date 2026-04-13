@@ -15,3 +15,4 @@ class DatasetColumnAdmin(admin.ModelAdmin):
     list_display = ['name', 'dataset', 'data_type', 'is_target', 'is_feature', 'missing_percentage']
     list_filter = ['data_type', 'is_target', 'is_feature']
     search_fields = ['name', 'dataset__name']
+
