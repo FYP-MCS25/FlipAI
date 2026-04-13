@@ -9,7 +9,7 @@ from .uci_metadata import get_uci_metadata_for_dataset, is_known_uci_dataset, ma
 
 
 class DatasetViewSet(viewsets.ModelViewSet):
-    """
+    """d
     ViewSet for Dataset CRUD operations
     """
     queryset = Dataset.objects.all()

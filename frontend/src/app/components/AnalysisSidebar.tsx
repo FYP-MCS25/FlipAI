@@ -3,9 +3,11 @@ import { useState } from 'react';
 
 interface Analysis {
   id: string;
+  datasetId: string;  
   datasetName: string;
-  modelName: string;
-  timestamp: Date;
+  targetFeature: string;
+  frozenFeatures: string[];
+  createdAt: Date;
 }
 
 interface AnalysisSidebarProps {
@@ -72,11 +74,8 @@ export function AnalysisSidebar({
                   <div className="text-sm font-medium truncate text-white">
                     {analysis.datasetName}
                   </div>
-                  <div className="text-xs text-white/50 truncate">
-                    {analysis.modelName}
-                  </div>
                   <div className="text-xs text-white/40 mt-0.5">
-                    {formatDateTime(analysis.timestamp)}
+                    {formatDateTime(analysis.createdAt)}
                   </div>
                 </div>
                 {hoveredAnalysis === analysis.id && (
