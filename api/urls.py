@@ -1,6 +1,5 @@
 from rest_framework.routers import DefaultRouter
 from datasets.views import DatasetViewSet
-from analysis.views import AnalysisViewSet
 from models.views import MLModelViewSet, TrainingJobViewSet
 from predictions.views import PredictionViewSet, CounterfactualViewSet, CounterfactualSearchViewSet
 
@@ -8,7 +7,6 @@ router = DefaultRouter()
 
 # Dataset endpoints
 router.register(r'datasets', DatasetViewSet, basename='dataset')
-router.register(r'analyses', AnalysisViewSet, basename='analysis')
 
 # Model endpoints
 router.register(r'models', MLModelViewSet, basename='mlmodel')

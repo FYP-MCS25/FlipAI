@@ -1,126 +1,146 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AnalysisSidebar } from './AnalysisSidebar';
 import { AnalysisOutput } from './AnalysisOutput';
 import { EmptyAnalysisState } from './EmptyAnalysisState';
 import { UploadModal } from './UploadModal';
 import { ExistingDatasetModal } from './ExistingDatasetModal';
 import { FeatureConfigForm } from './FeatureConfigForm';
-import { CounterfactualConfigForm} from './Counterfactualconfigform';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
-import { data } from 'react-router';
 
 interface Analysis {
   id: string;
-  datasetId: string;  
   datasetName: string;
-  targetFeature: string;
-  frozenFeatures: string[];
-  createdAt: Date;
+  modelName: string;
+  timestamp: Date;
+  data: {
+    datasetName: string;
+    modelName: string;
+    llmSummary: string;
+    shapAnalysis: {
+      topFeatures: { name: string; importance: number }[];
+      summary: string;
+    };
+    diceAnalysis: {
+      counterfactuals: { feature: string; original: string; suggested: string }[];
+      summary: string;
+    };
+  };
 }
 
-interface DatasetColumn {
-  id: number;
-  name: string;
-  data_type: string;
-  is_target: boolean;
-  is_feature: boolean;
-  description: string;
-  min_value: number | null;
-  max_value: number | null;
-  mean_value: number | null;
-  std_value: number | null;
-  unique_values: string[] | null;
-  num_unique: number | null;
-  missing_count: number;
-  missing_percentage: number;
-  dataset: number;
-}
-
-export interface Dataset {
+interface Dataset {
   id: string;
   name: string;
-  file?: File;
-  uploadAt: Date;
-  numRows: number;
-  columnNames: string[];
-  columns: DatasetColumn[];
-}
-
-// --- Step tracking for the multi-step new-analysis flow -----------------------
-//
-//  null                   -> no pending analysis (show existing or empty state)
-//  'feature-config'       -> FeatureConfigForm  (pick target + frozen features)
-//  'counterfactual-config'-> CounterfactualConfigForm (outcome condition + instance values)
-//
-type AnalysisStep = 'feature-config' | 'counterfactual-config';
-
-interface PendingDataset {
-  id: string;
-  name: string;
-  file?: File;
-  uploadAt: Date;
-  numRows: number;
-  columnNames: string[];
-  columns: DatasetColumn[];
-  source: 'upload' | 'existing';
-}
-
-interface PendingConfig {
-  targetFeature: string;
-  frozenFeatures: string[];
+  uploadDate: Date;
+  rowCount: number;
+  features?: string[];
 }
 
 export function Dashboard() {
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
-  useEffect(() => {
-    const fetchAnalyses = async () => {
-      try {
-        const res = await fetch('http://localhost:8000/api/v1/analyses/');
-        if (!res.ok) throw new Error('Failed to fetch analyses');
-        const data = await res.json();
-        // Transform API data into your Analysis type
-        const loadedAnalyses: Analysis[] = data.results.map((a: any) => ({
-          id: a.id.toString(),
-          targetFeature: a.target_feature,
-          frozenFeatures: a.frozen_features,
-          datasetName: a.dataset_name,
-          datasetId: a.dataset_id,       // make sure your API returns dataset_id
-          createdAt: new Date(a.created_at),
-        }));
-        console.log('Loaded analyses:', loadedAnalyses);
-        setAnalyses(loadedAnalyses);
-        if (loadedAnalyses.length > 0) setActiveAnalysis(loadedAnalyses[0].id);
-      } catch (err) {
-        console.error('Error fetching analyses:', err);
-      }
-    };
+  // TODO(api): Replace this seeded analysis history with data loaded from backend storage.
+  // Purpose: Provide demo analysis records and output content before API integration.
+  const [analyses, setAnalyses] = useState<Analysis[]>([
+    {
+      id: '1',
+      datasetName: 'customer_churn.csv',
+      modelName: 'RandomForest',
+      timestamp: new Date('2026-03-10T14:30:00'),
+      data: {
+        datasetName: 'customer_churn.csv',
+        modelName: 'RandomForest Classifier',
+        llmSummary: `Based on the analysis of your customer churn prediction model, several key insights emerge:
 
-    fetchAnalyses();
-  }, []);
+The model shows strong predictive performance with an accuracy of 87.3%. The SHAP analysis reveals that customer tenure, monthly charges, and contract type are the most influential factors in determining churn likelihood.
 
-  const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
-  useEffect(() => {
-    const fetchDatasets = async () => {
-      try {
-        const res = await fetch('http://localhost:8000/api/v1/datasets/');
-        if (!res.ok) throw new Error('Failed to fetch datasets');
-        const data = await res.json();
-        const datasets: Dataset[] = data.results.map((d: any) => ({
-          id: d.id.toString(),
-          name: d.name,
-          uploadAt: new Date(d.uploaded_at),
-          numRows: d.num_rows,
-          columnNames: d.column_names,
-          columns: d.columns || [],
-        }));
-        setExistingDatasets(datasets);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchDatasets();
-  }, []);
+Interestingly, customers with month-to-month contracts show significantly higher churn rates compared to those with longer-term commitments. The counterfactual analysis suggests that converting high-risk customers to annual contracts could reduce churn probability by up to 45%.
+
+Additional factors such as the presence of tech support and online security services also play important roles in customer retention. The model indicates that improving service quality in these areas could substantially decrease churn rates.`,
+        shapAnalysis: {
+          summary: 'SHAP (SHapley Additive exPlanations) values show the contribution of each feature to the model\'s predictions. Higher values indicate stronger influence on the prediction outcome.',
+          topFeatures: [
+            { name: 'Tenure (months)', importance: 0.92 },
+            { name: 'Monthly Charges', importance: 0.78 },
+            { name: 'Contract Type', importance: 0.65 },
+            { name: 'Tech Support', importance: 0.51 },
+            { name: 'Online Security', importance: 0.43 },
+          ],
+        },
+        diceAnalysis: {
+          summary: 'DiCE-ML generates diverse counterfactual explanations showing minimal changes needed to alter the prediction outcome. These suggestions can help identify actionable interventions.',
+          counterfactuals: [
+            { feature: 'Contract Type', original: 'Month-to-Month', suggested: 'One Year' },
+            { feature: 'Monthly Charges', original: '$85.50', suggested: '$65.00' },
+            { feature: 'Tech Support', original: 'No', suggested: 'Yes' },
+            { feature: 'Online Security', original: 'No', suggested: 'Yes' },
+          ],
+        },
+      },
+    },
+    {
+      id: '2',
+      datasetName: 'loan_approval.csv',
+      modelName: 'XGBoost',
+      timestamp: new Date('2026-03-09T10:15:00'),
+      data: {
+        datasetName: 'loan_approval.csv',
+        modelName: 'XGBoost Classifier',
+        llmSummary: `The loan approval prediction model demonstrates robust performance with key insights into approval factors:
+
+Credit score emerges as the dominant predictor, followed by debt-to-income ratio and employment history. The model achieves 91.2% accuracy in predicting loan approval outcomes.
+
+The counterfactual analysis reveals actionable steps for applicants: improving credit score by 50 points or reducing debt-to-income ratio by 10% significantly increases approval probability.`,
+        shapAnalysis: {
+          summary: 'Feature importance analysis for loan approval predictions.',
+          topFeatures: [
+            { name: 'Credit Score', importance: 0.95 },
+            { name: 'Debt-to-Income Ratio', importance: 0.82 },
+            { name: 'Employment Length', importance: 0.71 },
+            { name: 'Annual Income', importance: 0.63 },
+          ],
+        },
+        diceAnalysis: {
+          summary: 'Counterfactual suggestions for improving loan approval chances.',
+          counterfactuals: [
+            { feature: 'Credit Score', original: '650', suggested: '700' },
+            { feature: 'Debt-to-Income', original: '45%', suggested: '35%' },
+          ],
+        },
+      },
+    },
+  ]);
+
+  // TODO(api): Replace with datasets fetched for the signed-in user from backend/database.
+  // Purpose: Populate "Choose existing dataset" modal in local demo mode.
+  const [existingDatasets] = useState<Dataset[]>([
+    { 
+      id: 'd1', 
+      name: 'customer_churn.csv', 
+      uploadDate: new Date('2026-03-10'), 
+      rowCount: 7043,
+      features: ['Churn', 'Tenure (months)', 'Monthly Charges', 'Contract Type', 'Tech Support', 'Online Security', 'Payment Method', 'Internet Service']
+    },
+    { 
+      id: 'd2', 
+      name: 'loan_approval.csv', 
+      uploadDate: new Date('2026-03-09'), 
+      rowCount: 15234,
+      features: ['Loan Approved', 'Credit Score', 'Debt-to-Income Ratio', 'Employment Length', 'Annual Income', 'Loan Amount', 'Home Ownership', 'Marriage', 'Race', 'hello', 'bla', 'number of children']
+    },
+    { 
+      id: 'd3', 
+      name: 'employee_attrition.csv', 
+      uploadDate: new Date('2026-03-08'), 
+      rowCount: 1470,
+      features: ['Attrition', 'Age', 'Department', 'Job Role', 'Monthly Income', 'Years at Company', 'Work-Life Balance', 'Job Satisfaction']
+    },
+    { 
+      id: 'd4', 
+      name: 'house_prices.csv', 
+      uploadDate: new Date('2026-03-07'), 
+      rowCount: 21613,
+      features: ['Sale Price', 'Square Footage', 'Bedrooms', 'Bathrooms', 'Year Built', 'Lot Size', 'Neighborhood', 'Garage Size']
+    },
+  ]);
 
   const [activeAnalysis, setActiveAnalysis] = useState<string | null>('1');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -128,90 +148,40 @@ export function Dashboard() {
   const [existingDatasetModalOpen, setExistingDatasetModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
-  // -- Multi-step flow state --
-  const [analysisStep, setAnalysisStep] = useState<AnalysisStep | null>(null);
-  const [pendingDataset, setPendingDataset] = useState<PendingDataset | null>(null);
-  const [pendingConfig, setPendingConfig] = useState<PendingConfig | null>(null);
+  // Store pending dataset info for feature configuration
+  const [pendingDataset, setPendingDataset] = useState<{ name: string; features: string[]; source: 'upload' | 'existing'; file?: File } | null>(null);
 
   // TODO(auth): Replace with authenticated user profile returned by auth/session API.
-  const [user] = useState({ name: 'John Doe', email: 'john.doe@example.com' });
+  // Purpose: Show profile modal data while auth backend is not connected.
+  const [user] = useState({
+    name: 'John Doe',
+    email: 'john.doe@example.com',
+  });
 
-  const currentAnalysis = analyses.find((a) => a.id === activeAnalysis);
-
-  // -- Helpers ---------------------------------------------------------------
-
-  /** Reset all pending flow state and go back to the normal view. */
-  const clearPendingFlow = () => {
-    setPendingDataset(null);
-    setPendingConfig(null);
-    setAnalysisStep(null);
-  };
-
-  // -- Handlers -------------------------------------------------------------
+  const currentAnalysis = analyses.find((analysis) => analysis.id === activeAnalysis);
 
   const handleSelectAnalysis = (analysisId: string) => {
-    clearPendingFlow();
     setActiveAnalysis(analysisId);
   };
 
-  const handleDeleteAnalysis = async (analysisId: string) => {
-    try {
-      const response = await fetch(`http://localhost:8000/api/v1/analyses/${analysisId}/`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('Delete failed');
-
-      const updatedAnalyses = analyses.filter((a) => a.id !== analysisId);
-      setAnalyses(updatedAnalyses);
-      if (activeAnalysis === analysisId) {
-        setActiveAnalysis(updatedAnalyses.length > 0 ? updatedAnalyses[0].id : null);
-      }
-    } catch (err) {
-      console.error('Error deleting analysis:', err);
+  const handleDeleteAnalysis = (analysisId: string) => {
+    setAnalyses(analyses.filter((analysis) => analysis.id !== analysisId));
+    if (activeAnalysis === analysisId) {
+      setActiveAnalysis(analyses.length > 1 ? analyses[0].id : null);
     }
   };
 
-  const handleUploadDataset = async (file: File) => {
-    const datasetName = file.name.split('_')[0].split('.')[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', datasetName); // send it to backend
-
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/datasets/', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errText = await response.text(); // See server error message
-        throw new Error(`Upload failed: ${errText}`);
-      }
-
-      const uploadedDataset = await response.json();
-
-      await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/process/`, {
-        method: 'POST',
-      });
-      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
-      const fullDataset = await fullDatasetRes.json();
-
-      console.log('Uploaded dataset:', fullDataset);
-
-      setPendingDataset({
-        id: fullDataset.id.toString(),
-        numRows: fullDataset.num_rows,
-        columnNames: fullDataset.column_names,
-        columns: fullDataset.columns ?? [],
-        name: fullDataset.name,
-        uploadAt: fullDataset.uploaded_at,
-        source: 'upload',
-      });
-      setAnalysisStep('feature-config');
-      setUploadModalOpen(false);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleUploadDataset = (file: File) => {
+    // TODO(api): Replace mock feature list with parsed schema from upload ingestion service.
+    // Purpose: Keep feature configuration flow testable before file-processing backend exists.
+    const mockFeatures = ['Outcome', 'Feature_1', 'Feature_2', 'Feature_3', 'Feature_4', 'Feature_5'];
+    setPendingDataset({ 
+      name: file.name, 
+      features: mockFeatures, 
+      source: 'upload',
+      file 
+    });
+    setUploadModalOpen(false);
   };
 
   const handleChooseExisting = () => {
@@ -221,139 +191,73 @@ export function Dashboard() {
 
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
-    console.log('Selected dataset:', dataset);
     if (dataset) {
-      setPendingDataset({
-        id: dataset.id,
-        numRows: dataset.numRows,
-        columnNames: dataset.columnNames,
-        columns: dataset.columns ?? [],
-        name: dataset.name,
-        uploadAt: dataset.uploadAt,
-        source: 'existing',
+      // Show feature config form in main area
+      // TODO(api): Remove hardcoded fallback once dataset metadata always includes feature schema.
+      // Purpose: Prevent UI breakage for incomplete mock dataset entries during development.
+      const features = dataset.features || ['Feature_1', 'Feature_2', 'Feature_3'];
+      setPendingDataset({ 
+        name: dataset.name, 
+        features, 
+        source: 'existing' 
       });
-      setAnalysisStep('feature-config');
       setExistingDatasetModalOpen(false);
     }
   };
 
-  /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
   const handleFeatureConfigConfirm = (config: { targetFeature: string; frozenFeatures: string[] }) => {
-    setPendingConfig(config);
-    setAnalysisStep('counterfactual-config');
-    
+    if (!pendingDataset) return;
+
+    // TODO(api): Replace locally synthesized analysis payload with backend job submission and result retrieval.
+    // Purpose: Simulate completed SHAP/DiCE output so the dashboard flow works without model services.
     const newAnalysis: Analysis = {
+      // TODO(db): Use backend-generated analysis IDs to keep client/server records consistent.
       id: Date.now().toString(),
-      datasetId: pendingDataset?.id || 'unknown', 
-      datasetName: pendingDataset?.name || 'unknown',
-      targetFeature: config.targetFeature,
-      frozenFeatures: config.frozenFeatures,
-      createdAt: new Date(),
-    };
-    setAnalyses([newAnalysis, ...analyses]);
-    setActiveAnalysis(newAnalysis.id);
-  };
-
-  /** Called when user clicks "Generate Counterfactuals" in CounterfactualConfigForm. */
-  const handleCounterfactualConfigSubmit = () => {
-    if (activeAnalysis != null){
-      setActiveAnalysis(activeAnalysis);
-    }
-    clearPendingFlow();
-  };
-
-  // -------------------------------------------------------------------------
-
-  const renderMainContent = () => {
-    // Step 1 - feature config
-    if (analysisStep === 'feature-config' && pendingDataset) {
-      const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
-      return (
-        <FeatureConfigForm
-          datasetName={pendingDataset.name}
-          datasetId={pendingDataset.id}
-          features={pendingDataset.columnNames}
-          targetFeature={targetFeature}
-          onConfirm={handleFeatureConfigConfirm}
-        />
-      );
-    } 
-
-    // Step 2 - counterfactual outcome + instance values
-    if (analysisStep === 'counterfactual-config' && pendingDataset && pendingConfig) {
-      console.log('Configuring counterfactuals with dataset:', pendingDataset);
-      const featureMetas = pendingDataset.columns.map((col) => ({
-        name: col.name,
-        type: col.data_type as  'continuous' | 'categorical',
-        possibleValues: col.data_type === 'categorical' ? col.unique_values || [] : undefined,
-      }));
-
-      return (
-        <CounterfactualConfigForm
-          datasetName={pendingDataset.name}
-          targetFeature={pendingConfig.targetFeature}
-          frozenFeatures={pendingConfig.frozenFeatures}
-          featureMetas={featureMetas}
-          onBack={() => setAnalysisStep('feature-config')}
-          onSubmit={handleCounterfactualConfigSubmit}
-        />
-      );
-    }
-
-    // Analysis selected - show output page
-    if (currentAnalysis) {
-      const placeholderData = {
-        datasetName: currentAnalysis.datasetName,
-        modelName: 'Random Forest Classifier',
-        llmSummary:
-          `The model predicts the outcome based on several key features. ` +
-          `The most influential factor is "${currentAnalysis.targetFeature}", ` +
-          `which drives the prediction significantly. Counterfactual analysis suggests ` +
-          `that small adjustments to the top features below could flip the outcome.`,
+      datasetName: pendingDataset.name,
+      modelName: 'AutoML',
+      timestamp: new Date(),
+      data: {
+        datasetName: pendingDataset.name,
+        modelName: 'AutoML Classifier',
+        llmSummary: `Analysis for ${pendingDataset.name} is being processed with counterfactual generation.\n\n**Configuration:**\n- Target Feature: ${config.targetFeature}\n- Frozen Features: ${config.frozenFeatures.length > 0 ? config.frozenFeatures.join(', ') : 'None'}\n\nThe system will analyze feature importance using SHAP and generate counterfactual explanations with DiCE-ML, respecting the frozen features you specified. Frozen features will remain constant during counterfactual generation, while other features will be optimized to flip the target prediction.`,
         shapAnalysis: {
-          summary:
-            'SHAP analysis reveals the relative contribution of each feature to the model output.',
-          topFeatures: [
-            { name: currentAnalysis.targetFeature, importance: 0.42 },
-            { name: currentAnalysis.frozenFeatures[0] ?? 'Feature A', importance: 0.28 },
-            { name: currentAnalysis.frozenFeatures[1] ?? 'Feature B', importance: 0.17 },
-            { name: 'Other', importance: 0.13 },
-          ],
+          // TODO(model): Replace synthetic feature importances with SHAP output from backend explainability service.
+          summary: `Feature importance analysis for predicting ${config.targetFeature}. SHAP values show how each feature contributes to the model's predictions.`,
+          topFeatures: pendingDataset.features
+            .filter(f => f !== config.targetFeature)
+            .slice(0, 5)
+            .map((f, i) => ({ 
+              name: f, 
+              importance: 0.95 - (i * 0.1) 
+            })),
         },
         diceAnalysis: {
-          summary:
-            'DiCE-ML generated 3 diverse counterfactuals that would change the model prediction.',
-          counterfactuals: [
-            {
-              feature: currentAnalysis.targetFeature,
-              original: '0',
-              suggested: '1',
-            },
-            {
-              feature: currentAnalysis.frozenFeatures[0] ?? 'Feature A',
-              original: '23',
-              suggested: '31',
-            },
-            {
-              feature: currentAnalysis.frozenFeatures[1] ?? 'Feature B',
-              original: 'Low',
-              suggested: 'High',
-            },
-          ],
+          // TODO(model): Replace placeholder counterfactual values with DiCE results returned by backend service.
+          summary: `Counterfactual explanations showing minimal changes needed to flip ${config.targetFeature}. ${config.frozenFeatures.length > 0 ? `Features kept constant: ${config.frozenFeatures.join(', ')}.` : 'All features are allowed to vary.'}`,
+          counterfactuals: pendingDataset.features
+            .filter(f => f !== config.targetFeature && !config.frozenFeatures.includes(f))
+            .slice(0, 4)
+            .map((f) => ({ 
+              feature: f, 
+              original: 'Current Value', 
+              suggested: 'Suggested Value' 
+            })),
         },
-      };
+      },
+    };
 
-      return <AnalysisOutput analysis={placeholderData} />;
-    }
-
-    // Normal states
-    return <EmptyAnalysisState onOpenUpload={() => setUploadModalOpen(true)} />;
+    setAnalyses([newAnalysis, ...analyses]);
+    setActiveAnalysis(newAnalysis.id);
+    setPendingDataset(null);
   };
 
-  // -------------------------------------------------------------------------
+  const handleFeatureConfigClose = () => {
+    setPendingDataset(null);
+  };
 
   return (
     <div className="h-dvh w-full flex bg-black text-white overflow-hidden">
+      {/* Sidebar */}
       {sidebarOpen && (
         <AnalysisSidebar
           analyses={analyses}
@@ -365,6 +269,7 @@ export function Dashboard() {
         />
       )}
 
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10 flex-shrink-0">
@@ -386,14 +291,10 @@ export function Dashboard() {
               </>
             )}
             <h2 className="text-lg font-medium text-white/90">
-              {analysisStep === 'feature-config' && pendingDataset
-                ? pendingDataset.name
-                : analysisStep === 'counterfactual-config' && pendingDataset
-                ? pendingDataset.name
-                : currentAnalysis?.datasetName || 'Counterfactual Generation Tool'}
+              {currentAnalysis?.datasetName || 'Counterfactual Generation Tool'}
             </h2>
           </div>
-
+          
           <button
             onClick={() => setUploadModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -404,7 +305,18 @@ export function Dashboard() {
         </div>
 
         {/* Content */}
-        {renderMainContent()}
+        {pendingDataset ? (
+          <FeatureConfigForm
+            datasetName={pendingDataset.name}
+            modelName="AutoML Classifier"
+            features={pendingDataset.features}
+            onConfirm={handleFeatureConfigConfirm}
+          />
+        ) : currentAnalysis ? (
+          <AnalysisOutput analysis={currentAnalysis.data} />
+        ) : (
+          <EmptyAnalysisState onOpenUpload={() => setUploadModalOpen(true)} />
+        )}
       </div>
 
       {/* Modals */}
