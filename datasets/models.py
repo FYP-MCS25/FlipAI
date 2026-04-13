@@ -37,8 +37,8 @@ class Dataset(models.Model):
         return self.columns.filter(is_feature=True, is_target=False)
     
     def get_categorical_columns(self):
-        """Get all categorical/binary columns with their unique values for dropdowns"""
-        return self.columns.filter(data_type__in=['categorical', 'binary']).exclude(unique_values__isnull=True)
+        """Get all categorical columns with their unique values for dropdowns"""
+        return self.columns.filter(data_type__in=['categorical']).exclude(unique_values__isnull=True)
 
 
 class DatasetColumn(models.Model):
@@ -46,7 +46,6 @@ class DatasetColumn(models.Model):
     Model to store information about dataset columns
     """
     FEATURE_TYPE_CHOICES = [
-        ('binary', 'Binary'),
         ('categorical', 'Categorical'),
         ('continuous', 'Continuous'),
         ('datetime', 'DateTime'),
