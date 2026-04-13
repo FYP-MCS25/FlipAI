@@ -111,4 +111,3 @@ class DatasetColumn(models.Model):
         if self.is_categorical() and self.unique_values:
             return self.unique_values
         return None
-
