@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { AnalysisSidebar } from './AnalysisSidebar';
-import { AnalysisOutput } from './AnalysisOutput';
+import { AnalysisPanel } from './AnalysisPanel';
 import { EmptyAnalysisState } from './EmptyAnalysisState';
 import { UploadModal } from './UploadModal';
 import { ExistingDatasetModal } from './ExistingDatasetModal';
 import { FeatureConfigForm } from './FeatureConfigForm';
-import { CounterfactualConfigForm} from './Counterfactualconfigform';
+import { CounterfactualConfigForm, type CounterfactualConfig } from './Counterfactualconfigform';
+import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
-import { data } from 'react-router';
 
 interface Analysis {
   id: string;
   datasetId: string;  
   datasetName: string;
+  modelName: string;
   targetFeature: string;
   frozenFeatures: string[];
+  testAnalyses: TestAnalysis[];
   createdAt: Date;
 }
 
@@ -85,7 +87,9 @@ export function Dashboard() {
           targetFeature: a.target_feature,
           frozenFeatures: a.frozen_features,
           datasetName: a.dataset_name,
-          datasetId: a.dataset_id,       // make sure your API returns dataset_id
+          datasetId: String(a.dataset_id),
+          modelName: a.model_name || 'Random Forest Classifier',
+          testAnalyses: [],
           createdAt: new Date(a.created_at),
         }));
         console.log('Loaded analyses:', loadedAnalyses);
@@ -106,14 +110,7 @@ export function Dashboard() {
         const res = await fetch('http://localhost:8000/api/v1/datasets/');
         if (!res.ok) throw new Error('Failed to fetch datasets');
         const data = await res.json();
-        const datasets: Dataset[] = data.results.map((d: any) => ({
-          id: d.id.toString(),
-          name: d.name,
-          uploadAt: new Date(d.uploaded_at),
-          numRows: d.num_rows,
-          columnNames: d.column_names,
-          columns: d.columns || [],
-        }));
+        const datasets: Dataset[] = data.results.map((d: any) => toDataset(d));
         setExistingDatasets(datasets);
       } catch (err) {
         console.error(err);
@@ -139,6 +136,73 @@ export function Dashboard() {
   const currentAnalysis = analyses.find((a) => a.id === activeAnalysis);
 
   // -- Helpers ---------------------------------------------------------------
+
+  const toDataset = (dataset: any): Dataset => ({
+    id: dataset.id.toString(),
+    name: dataset.name,
+    uploadAt: new Date(dataset.uploaded_at),
+    numRows: dataset.num_rows,
+    columnNames: dataset.column_names ?? [],
+    columns: dataset.columns ?? [],
+  });
+
+  const upsertDataset = (dataset: Dataset) => {
+    setExistingDatasets((prev) => {
+      const index = prev.findIndex((item) => item.id === dataset.id);
+      if (index === -1) {
+        return [dataset, ...prev];
+      }
+
+      const next = [...prev];
+      next[index] = dataset;
+      return next;
+    });
+  };
+
+  const fetchDatasetById = async (datasetId: string): Promise<Dataset | null> => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/`);
+      if (!response.ok) throw new Error(`Failed to fetch dataset ${datasetId}`);
+      const rawDataset = await response.json();
+      const parsed = toDataset(rawDataset);
+      upsertDataset(parsed);
+      return parsed;
+    } catch (error) {
+      console.error('Error fetching dataset details:', error);
+      return null;
+    }
+  };
+
+  const openFeatureConfigForDataset = (dataset: Dataset) => {
+    setPendingDataset({
+      id: dataset.id,
+      numRows: dataset.numRows,
+      columnNames: dataset.columnNames,
+      columns: dataset.columns ?? [],
+      name: dataset.name,
+      uploadAt: dataset.uploadAt,
+      source: 'existing',
+    });
+    setAnalysisStep('feature-config');
+    setExistingDatasetModalOpen(false);
+  };
+
+  const openCounterfactualInputForAnalysis = (analysis: Analysis, dataset: Dataset) => {
+    setPendingDataset({
+      id: dataset.id,
+      numRows: dataset.numRows,
+      columnNames: dataset.columnNames,
+      columns: dataset.columns ?? [],
+      name: dataset.name,
+      uploadAt: dataset.uploadAt,
+      source: 'existing',
+    });
+    setPendingConfig({
+      targetFeature: analysis.targetFeature,
+      frozenFeatures: analysis.frozenFeatures,
+    });
+    setAnalysisStep('counterfactual-config');
+  };
 
   /** Reset all pending flow state and go back to the normal view. */
   const clearPendingFlow = () => {
@@ -195,16 +259,19 @@ export function Dashboard() {
       });
       const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
       const fullDataset = await fullDatasetRes.json();
+      const parsedDataset = toDataset(fullDataset);
 
       console.log('Uploaded dataset:', fullDataset);
 
+      upsertDataset(parsedDataset);
+
       setPendingDataset({
-        id: fullDataset.id.toString(),
-        numRows: fullDataset.num_rows,
-        columnNames: fullDataset.column_names,
-        columns: fullDataset.columns ?? [],
-        name: fullDataset.name,
-        uploadAt: fullDataset.uploaded_at,
+        id: parsedDataset.id,
+        numRows: parsedDataset.numRows,
+        columnNames: parsedDataset.columnNames,
+        columns: parsedDataset.columns,
+        name: parsedDataset.name,
+        uploadAt: parsedDataset.uploadAt,
         source: 'upload',
       });
       setAnalysisStep('feature-config');
@@ -222,19 +289,16 @@ export function Dashboard() {
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
     console.log('Selected dataset:', dataset);
-    if (dataset) {
-      setPendingDataset({
-        id: dataset.id,
-        numRows: dataset.numRows,
-        columnNames: dataset.columnNames,
-        columns: dataset.columns ?? [],
-        name: dataset.name,
-        uploadAt: dataset.uploadAt,
-        source: 'existing',
-      });
-      setAnalysisStep('feature-config');
-      setExistingDatasetModalOpen(false);
+    if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
+      openFeatureConfigForDataset(dataset);
+      return;
     }
+
+    void (async () => {
+      const fetchedDataset = await fetchDatasetById(datasetId);
+      if (!fetchedDataset) return;
+      openFeatureConfigForDataset(fetchedDataset);
+    })();
   };
 
   /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
@@ -246,20 +310,102 @@ export function Dashboard() {
       id: Date.now().toString(),
       datasetId: pendingDataset?.id || 'unknown', 
       datasetName: pendingDataset?.name || 'unknown',
+      modelName: 'Random Forest Classifier',
       targetFeature: config.targetFeature,
       frozenFeatures: config.frozenFeatures,
+      testAnalyses: [],
       createdAt: new Date(),
     };
-    setAnalyses([newAnalysis, ...analyses]);
+    setAnalyses((prev) => [newAnalysis, ...prev]);
     setActiveAnalysis(newAnalysis.id);
   };
 
+  const buildMockCounterfactualRun = (
+    config: CounterfactualConfig,
+    analysis: Analysis,
+    featurePool: string[]
+  ): TestAnalysis => {
+    const runNumber = (analysis.testAnalyses?.length ?? 0) + 1;
+    const variableFeatures = featurePool.filter(
+      (name) => name !== analysis.targetFeature && !analysis.frozenFeatures.includes(name)
+    );
+    const selectedFeatures =
+      variableFeatures.length > 0 ? variableFeatures : Object.keys(config.instanceValues);
+
+    // MOCK OUTPUT: Replace this generated object with the API response payload
+    // from the counterfactual explanation endpoint when backend integration is ready.
+    return {
+      testId: runNumber.toString(),
+      timestamp: new Date(),
+      inputData: config.instanceValues,
+      llmSummary:
+        `Mock summary for run #${runNumber}. The requested target condition is ` +
+        `${config.targetCondition.feature} ${config.targetCondition.op} ${config.targetCondition.value}. ` +
+        `The model indicates the most influential features for this instance are listed below.`,
+      shapAnalysis: {
+        summary:
+          'Mock SHAP explanation: feature attributions shown here should be replaced by backend SHAP values.',
+        topFeatures: selectedFeatures.slice(0, 5).map((name, idx) => ({
+          name,
+          importance: Math.max(0.12, 0.88 - idx * 0.15),
+        })),
+      },
+      diceAnalysis: {
+        summary:
+          'Mock DiCE output: these combinations are placeholders until real counterfactual combinations are returned.',
+        combinations: Array.from({ length: 3 }, (_, i) => ({
+          id: i + 1,
+          features: selectedFeatures.slice(0, 4).map((featureName) => ({
+            name: featureName,
+            value: `${config.instanceValues[featureName] || 'N/A'} (candidate ${i + 1})`,
+          })),
+        })),
+      },
+    };
+  };
+
   /** Called when user clicks "Generate Counterfactuals" in CounterfactualConfigForm. */
-  const handleCounterfactualConfigSubmit = () => {
-    if (activeAnalysis != null){
-      setActiveAnalysis(activeAnalysis);
+  const handleCounterfactualConfigSubmit = (config: CounterfactualConfig) => {
+    if (!activeAnalysis) {
+      clearPendingFlow();
+      return;
     }
+
+    const featurePool = pendingDataset?.columnNames || Object.keys(config.instanceValues);
+
+    setAnalyses((prev) =>
+      prev.map((analysis) => {
+        if (analysis.id !== activeAnalysis) return analysis;
+        const run = buildMockCounterfactualRun(config, analysis, featurePool);
+        return {
+          ...analysis,
+          testAnalyses: [run, ...analysis.testAnalyses],
+        };
+      })
+    );
+
     clearPendingFlow();
+  };
+
+  const handleOpenCounterfactualInputForm = () => {
+    if (!currentAnalysis) return;
+
+    const analysis = currentAnalysis;
+    const dataset = existingDatasets.find((d) => d.id === analysis.datasetId);
+
+    if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
+      openCounterfactualInputForAnalysis(analysis, dataset);
+      return;
+    }
+
+    void (async () => {
+      const fetchedDataset = await fetchDatasetById(analysis.datasetId);
+      if (!fetchedDataset) {
+        console.error('Unable to find dataset metadata for analysis:', analysis.id);
+        return;
+      }
+      openCounterfactualInputForAnalysis(analysis, fetchedDataset);
+    })();
   };
 
   // -------------------------------------------------------------------------
@@ -302,48 +448,16 @@ export function Dashboard() {
 
     // Analysis selected - show output page
     if (currentAnalysis) {
-      const placeholderData = {
-        datasetName: currentAnalysis.datasetName,
-        modelName: 'Random Forest Classifier',
-        llmSummary:
-          `The model predicts the outcome based on several key features. ` +
-          `The most influential factor is "${currentAnalysis.targetFeature}", ` +
-          `which drives the prediction significantly. Counterfactual analysis suggests ` +
-          `that small adjustments to the top features below could flip the outcome.`,
-        shapAnalysis: {
-          summary:
-            'SHAP analysis reveals the relative contribution of each feature to the model output.',
-          topFeatures: [
-            { name: currentAnalysis.targetFeature, importance: 0.42 },
-            { name: currentAnalysis.frozenFeatures[0] ?? 'Feature A', importance: 0.28 },
-            { name: currentAnalysis.frozenFeatures[1] ?? 'Feature B', importance: 0.17 },
-            { name: 'Other', importance: 0.13 },
-          ],
-        },
-        diceAnalysis: {
-          summary:
-            'DiCE-ML generated 3 diverse counterfactuals that would change the model prediction.',
-          counterfactuals: [
-            {
-              feature: currentAnalysis.targetFeature,
-              original: '0',
-              suggested: '1',
-            },
-            {
-              feature: currentAnalysis.frozenFeatures[0] ?? 'Feature A',
-              original: '23',
-              suggested: '31',
-            },
-            {
-              feature: currentAnalysis.frozenFeatures[1] ?? 'Feature B',
-              original: 'Low',
-              suggested: 'High',
-            },
-          ],
-        },
-      };
-
-      return <AnalysisOutput analysis={placeholderData} />;
+      return (
+        <AnalysisPanel
+          datasetName={currentAnalysis.datasetName}
+          modelName={currentAnalysis.modelName}
+          targetFeature={currentAnalysis.targetFeature}
+          frozenFeatures={currentAnalysis.frozenFeatures}
+          analyses={currentAnalysis.testAnalyses}
+          onOpenInputForm={handleOpenCounterfactualInputForm}
+        />
+      );
     }
 
     // Normal states
