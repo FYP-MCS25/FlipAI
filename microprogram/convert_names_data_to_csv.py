@@ -50,7 +50,7 @@ def convert_to_csv(df: pd.DataFrame, output_file: str):
     output_dir = os.path.dirname(output_file)
     os.makedirs(output_dir, exist_ok=True)
     df.to_csv(output_file, index=False)
-    print(f"✅ CSV saved to {output_file}")
+    print(f"CSV saved to {output_file}")
 
 if __name__ == "__main__":
     headers = extract_headers(NAMES_FILE)
