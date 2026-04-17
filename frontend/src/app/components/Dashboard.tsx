@@ -56,6 +56,7 @@ export interface Dataset {
 //  'counterfactual-config'-> CounterfactualConfigForm (outcome condition + instance values)
 //
 type AnalysisStep = 'feature-config' | 'counterfactual-config';
+type CounterfactualEntrySource = 'new-analysis' | 'existing-analysis';
 
 interface PendingDataset {
   id: string;
@@ -82,16 +83,20 @@ export function Dashboard() {
         if (!res.ok) throw new Error('Failed to fetch analyses');
         const data = await res.json();
         // Transform API data into your Analysis type
-        const loadedAnalyses: Analysis[] = data.results.map((a: any) => ({
+        const loadedAnalyses: Analysis[] = data.results.map((a: any) => {
+          const datasetId = a.dataset_id ?? a.dataset;
+
+          return {
           id: a.id.toString(),
           targetFeature: a.target_feature,
           frozenFeatures: a.frozen_features,
           datasetName: a.dataset_name,
-          datasetId: String(a.dataset_id),
+          datasetId: datasetId != null ? String(datasetId) : '',
           modelName: a.model_name || 'Random Forest Classifier',
           testAnalyses: [],
           createdAt: new Date(a.created_at),
-        }));
+        };
+        });
         console.log('Loaded analyses:', loadedAnalyses);
         setAnalyses(loadedAnalyses);
         if (loadedAnalyses.length > 0) setActiveAnalysis(loadedAnalyses[0].id);
@@ -129,6 +134,8 @@ export function Dashboard() {
   const [analysisStep, setAnalysisStep] = useState<AnalysisStep | null>(null);
   const [pendingDataset, setPendingDataset] = useState<PendingDataset | null>(null);
   const [pendingConfig, setPendingConfig] = useState<PendingConfig | null>(null);
+  const [counterfactualEntrySource, setCounterfactualEntrySource] =
+    useState<CounterfactualEntrySource | null>(null);
 
   // TODO(auth): Replace with authenticated user profile returned by auth/session API.
   const [user] = useState({ name: 'John Doe', email: 'john.doe@example.com' });
@@ -183,6 +190,7 @@ export function Dashboard() {
       uploadAt: dataset.uploadAt,
       source: 'existing',
     });
+    setCounterfactualEntrySource(null);
     setAnalysisStep('feature-config');
     setExistingDatasetModalOpen(false);
   };
@@ -201,6 +209,7 @@ export function Dashboard() {
       targetFeature: analysis.targetFeature,
       frozenFeatures: analysis.frozenFeatures,
     });
+    setCounterfactualEntrySource('existing-analysis');
     setAnalysisStep('counterfactual-config');
   };
 
@@ -208,6 +217,7 @@ export function Dashboard() {
   const clearPendingFlow = () => {
     setPendingDataset(null);
     setPendingConfig(null);
+    setCounterfactualEntrySource(null);
     setAnalysisStep(null);
   };
 
@@ -274,6 +284,7 @@ export function Dashboard() {
         uploadAt: parsedDataset.uploadAt,
         source: 'upload',
       });
+      setCounterfactualEntrySource(null);
       setAnalysisStep('feature-config');
       setUploadModalOpen(false);
     } catch (err) {
@@ -304,6 +315,7 @@ export function Dashboard() {
   /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
   const handleFeatureConfigConfirm = (config: { targetFeature: string; frozenFeatures: string[] }) => {
     setPendingConfig(config);
+    setCounterfactualEntrySource('new-analysis');
     setAnalysisStep('counterfactual-config');
     
     const newAnalysis: Analysis = {
@@ -391,6 +403,12 @@ export function Dashboard() {
     if (!currentAnalysis) return;
 
     const analysis = currentAnalysis;
+    if (!analysis.datasetId) {
+      console.error('Analysis is missing dataset id:', analysis.id);
+      alert('This analysis is missing dataset metadata. Please create a new analysis from a dataset first.');
+      return;
+    }
+
     const dataset = existingDatasets.find((d) => d.id === analysis.datasetId);
 
     if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
@@ -402,10 +420,20 @@ export function Dashboard() {
       const fetchedDataset = await fetchDatasetById(analysis.datasetId);
       if (!fetchedDataset) {
         console.error('Unable to find dataset metadata for analysis:', analysis.id);
+        alert('Could not load dataset metadata for this analysis. Please choose a dataset and start a new analysis.');
         return;
       }
       openCounterfactualInputForAnalysis(analysis, fetchedDataset);
     })();
+  };
+
+  const handleCounterfactualBack = () => {
+    if (counterfactualEntrySource === 'new-analysis') {
+      setAnalysisStep('feature-config');
+      return;
+    }
+
+    clearPendingFlow();
   };
 
   // -------------------------------------------------------------------------
@@ -440,7 +468,7 @@ export function Dashboard() {
           targetFeature={pendingConfig.targetFeature}
           frozenFeatures={pendingConfig.frozenFeatures}
           featureMetas={featureMetas}
-          onBack={() => setAnalysisStep('feature-config')}
+          onBack={handleCounterfactualBack}
           onSubmit={handleCounterfactualConfigSubmit}
         />
       );
