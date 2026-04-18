@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { ArrowLeft, Target, Lock, FlaskConical } from 'lucide-react';
 import {
+  buildCounterfactualSummary,
+  type CounterfactualDisplayCombination,
+  type CounterfactualResponsePayload,
   coerceInputDataForPrediction,
   getTopPredictionConfidence,
+  mapCounterfactualsToDisplayCombinations,
   mapShapTopFeatures,
+  requestCounterfactuals,
   requestPredictionWithShap,
 } from '../services/predictionFlow';
 
@@ -43,6 +48,10 @@ export interface PredictionSubmissionPayload {
   predictionError: string | null;
   shapTopFeatures: Array<{ name: string; importance: number }>;
   topConfidence: number | null;
+  counterfactualResult: CounterfactualResponsePayload | null;
+  counterfactualError: string | null;
+  counterfactualCombinations: CounterfactualDisplayCombination[];
+  counterfactualSummary: string;
 }
 
 interface CounterfactualConfigFormProps {
@@ -220,6 +229,25 @@ export function CounterfactualConfigForm({
       const shapTopFeatures = mapShapTopFeatures(predictionResult?.shap_explanation || null);
       const topConfidence = getTopPredictionConfidence(predictionProbabilities);
 
+      let counterfactualResult: CounterfactualResponsePayload | null = null;
+      let counterfactualError: string | null = null;
+
+      if (typeof predictionResult?.prediction_id === 'number') {
+        const counterfactualResponse = await requestCounterfactuals(
+          predictionResult.prediction_id,
+          targetValue,
+          frozenFeatures
+        );
+
+        counterfactualResult = counterfactualResponse.counterfactualResult;
+        counterfactualError = counterfactualResponse.counterfactualError;
+      } else if (!predictionError) {
+        counterfactualError = 'Counterfactual request skipped because prediction id is unavailable.';
+      }
+
+      const counterfactualCombinations = mapCounterfactualsToDisplayCombinations(counterfactualResult);
+      const counterfactualSummary = buildCounterfactualSummary(counterfactualResult, counterfactualError);
+
       // Step 3: Pass both counterfactual config and prediction payload back to parent state.
       await onSubmit({
         targetCondition: { feature: targetFeature, op, value: targetValue },
@@ -236,10 +264,16 @@ export function CounterfactualConfigForm({
         predictionError,
         shapTopFeatures,
         topConfidence,
+        counterfactualResult,
+        counterfactualError,
+        counterfactualCombinations,
+        counterfactualSummary,
       });
 
       if (predictionError) {
         alert(`Prediction request failed. The run was saved with error details.\n\n${predictionError}`);
+      } else if (counterfactualError) {
+        alert(`Counterfactual generation failed. The run was saved with error details.\n\n${counterfactualError}`);
       }
     } finally {
       onPredictionRequestStateChange?.(false);
