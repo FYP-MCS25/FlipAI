@@ -23,6 +23,43 @@ export interface PredictionRequestResult {
   predictionError: string | null;
 }
 
+export interface CounterfactualOptionPayload {
+  counterfactual_data?: Record<string, unknown>;
+  counterfactual_class?: string;
+  confidence?: number;
+  feature_changes?: Record<
+    string,
+    {
+      original?: unknown;
+      counterfactual?: unknown;
+      change?: unknown;
+      percent_change?: unknown;
+    }
+  >;
+  num_changes?: number;
+  changed_features?: string[];
+  combined_score?: number;
+}
+
+export interface CounterfactualResponsePayload {
+  status?: string;
+  total_generated?: number;
+  unique_feature_combinations?: number;
+  grouped_counterfactuals?: Record<string, CounterfactualOptionPayload[]>;
+}
+
+export interface CounterfactualRequestResult {
+  counterfactualResult: CounterfactualResponsePayload | null;
+  counterfactualError: string | null;
+}
+
+export interface CounterfactualDisplayCombination {
+  id: number;
+  confidence?: number | null;
+  combinedScore?: number | null;
+  features: { name: string; value: string }[];
+}
+
 // Convert string form inputs into numeric values when metadata marks the feature as numeric.
 export const coerceInputDataForPrediction = (
   rawInput: Record<string, string>,
@@ -143,4 +180,177 @@ export const requestPredictionWithShap = async (
       predictionError: error instanceof Error ? error.message : 'Unknown prediction error.',
     };
   }
+};
+
+// Execute DiCE counterfactual generation for a stored prediction id.
+export const requestCounterfactuals = async (
+  predictionId: number,
+  desiredClass: string | null,
+  frozenFeatures: string[]
+): Promise<CounterfactualRequestResult> => {
+  const requestBody: Record<string, unknown> = {
+    prediction_id: predictionId,
+    max_iterations: 1000,
+  };
+
+  if (desiredClass && desiredClass.trim().length > 0) {
+    requestBody.desired_class = desiredClass;
+  }
+
+  if (frozenFeatures.length > 0) {
+    requestBody.feature_constraints = {
+      frozen_features: frozenFeatures,
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:8000/api/v1/predictions/${predictionId}/find_counterfactuals/`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    let responseData: any = {};
+    try {
+      responseData = await response.json();
+    } catch {
+      responseData = {};
+    }
+
+    if (!response.ok) {
+      const message =
+        responseData?.error ||
+        responseData?.detail ||
+        responseData?.status ||
+        (typeof responseData === 'string' ? responseData : 'Counterfactual request failed.');
+
+      return {
+        counterfactualResult: null,
+        counterfactualError: message,
+      };
+    }
+
+    return {
+      counterfactualResult: responseData,
+      counterfactualError: null,
+    };
+  } catch (error) {
+    return {
+      counterfactualResult: null,
+      counterfactualError: error instanceof Error ? error.message : 'Unknown counterfactual error.',
+    };
+  }
+};
+
+const toDisplayValue = (value: unknown): string => {
+  if (value === null || value === undefined) return 'N/A';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
+const mapOptionToFeatures = (option: CounterfactualOptionPayload): { name: string; value: string }[] => {
+  const featureChanges = option.feature_changes;
+
+  if (featureChanges && typeof featureChanges === 'object') {
+    const changeRows = Object.entries(featureChanges).map(([featureName, details]) => {
+      const original = toDisplayValue(details?.original);
+      const counterfactual = toDisplayValue(details?.counterfactual);
+      return {
+        name: featureName,
+        value: `${original} -> ${counterfactual}`,
+      };
+    });
+
+    if (changeRows.length > 0) return changeRows;
+  }
+
+  if (option.counterfactual_data && typeof option.counterfactual_data === 'object') {
+    return Object.entries(option.counterfactual_data)
+      .slice(0, 4)
+      .map(([featureName, value]) => ({
+        name: featureName,
+        value: toDisplayValue(value),
+      }));
+  }
+
+  return [];
+};
+
+// Flatten grouped counterfactual options into top-ranked cards for the current UI.
+export const mapCounterfactualsToDisplayCombinations = (
+  counterfactualResult: CounterfactualResponsePayload | null,
+  maxItems = 6
+): CounterfactualDisplayCombination[] => {
+  const grouped = counterfactualResult?.grouped_counterfactuals;
+  if (!grouped || typeof grouped !== 'object') return [];
+
+  const options = Object.values(grouped)
+    .filter((group): group is CounterfactualOptionPayload[] => Array.isArray(group))
+    .flat();
+
+  const ranked = options
+    .map((option) => ({
+      confidence:
+        typeof option.confidence === 'number' && Number.isFinite(option.confidence)
+          ? option.confidence
+          : null,
+      combinedScore:
+        typeof option.combined_score === 'number' && Number.isFinite(option.combined_score)
+          ? option.combined_score
+          : null,
+      features: mapOptionToFeatures(option),
+    }))
+    .filter((option) => option.features.length > 0)
+    .sort((left, right) => {
+      const leftScore = left.combinedScore ?? -1;
+      const rightScore = right.combinedScore ?? -1;
+      if (leftScore !== rightScore) return rightScore - leftScore;
+
+      const leftConfidence = left.confidence ?? -1;
+      const rightConfidence = right.confidence ?? -1;
+      return rightConfidence - leftConfidence;
+    })
+    .slice(0, maxItems)
+    .map((option, index) => ({
+      id: index + 1,
+      confidence: option.confidence,
+      combinedScore: option.combinedScore,
+      features: option.features,
+    }));
+
+  return ranked;
+};
+
+// Build user-facing summary text for DiCE output area.
+export const buildCounterfactualSummary = (
+  counterfactualResult: CounterfactualResponsePayload | null,
+  counterfactualError: string | null
+): string => {
+  if (counterfactualError) {
+    return `Counterfactual generation failed: ${counterfactualError}`;
+  }
+
+  if (!counterfactualResult) {
+    return 'Counterfactual generation did not return a response.';
+  }
+
+  const totalGenerated =
+    typeof counterfactualResult.total_generated === 'number'
+      ? counterfactualResult.total_generated
+      : null;
+  const uniqueCombinations =
+    typeof counterfactualResult.unique_feature_combinations === 'number'
+      ? counterfactualResult.unique_feature_combinations
+      : null;
+
+  if (totalGenerated !== null && uniqueCombinations !== null) {
+    return `Generated ${totalGenerated} counterfactual candidates across ${uniqueCombinations} feature-combination groups.`;
+  }
+
+  return 'Counterfactual generation completed.';
 };

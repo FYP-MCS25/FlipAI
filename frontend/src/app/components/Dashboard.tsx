@@ -487,17 +487,10 @@ export function Dashboard() {
 
   // Build the UI run record by combining submitted config with the prediction payload from form.
   const buildCounterfactualRun = (
-    config: CounterfactualConfig,
     analysis: Analysis,
-    featurePool: string[],
     prediction: PredictionSubmissionPayload
   ): TestAnalysis => {
     const runNumber = (analysis.testAnalyses?.length ?? 0) + 1;
-    const variableFeatures = featurePool.filter(
-      (name) => name !== analysis.targetFeature && !analysis.frozenFeatures.includes(name)
-    );
-    const selectedFeatures =
-      variableFeatures.length > 0 ? variableFeatures : Object.keys(config.instanceValues);
 
     const shapSummary = prediction.predictionError
       ? `Prediction and SHAP request failed: ${prediction.predictionError}`
@@ -513,7 +506,7 @@ export function Dashboard() {
             : ''
         }. LLM explanation wiring is scheduled for Phase 6.`;
 
-    // Keep DiCE output mocked in Phase 4; Phase 5 replaces this with backend counterfactual data.
+    // DiCE section is now populated from backend counterfactual response payload.
     return {
       testId: runNumber.toString(),
       timestamp: new Date(),
@@ -542,22 +535,15 @@ export function Dashboard() {
         topFeatures: prediction.shapTopFeatures,
       },
       diceAnalysis: {
-        summary:
-          'Mock DiCE output: these combinations are placeholders until real counterfactual combinations are returned.',
-        combinations: Array.from({ length: 3 }, (_, i) => ({
-          id: i + 1,
-          features: selectedFeatures.slice(0, 4).map((featureName) => ({
-            name: featureName,
-            value: `${config.instanceValues[featureName] || 'N/A'} (candidate ${i + 1})`,
-          })),
-        })),
+        summary: prediction.counterfactualSummary,
+        combinations: prediction.counterfactualCombinations,
       },
     };
   };
 
   /** Called when user clicks "Generate Counterfactuals" in CounterfactualConfigForm. */
   const handleCounterfactualConfigSubmit = (
-    config: CounterfactualConfig,
+    _config: CounterfactualConfig,
     prediction: PredictionSubmissionPayload
   ) => {
     if (!activeAnalysis) {
@@ -571,17 +557,10 @@ export function Dashboard() {
       return;
     }
 
-    const featurePool = pendingDataset?.columnNames || Object.keys(config.instanceValues);
-
     setAnalyses((prev) =>
       prev.map((analysis) => {
         if (analysis.id !== activeAnalysis) return analysis;
-        const run = buildCounterfactualRun(
-          config,
-          analysis,
-          featurePool,
-          prediction
-        );
+        const run = buildCounterfactualRun(analysis, prediction);
         return {
           ...analysis,
           testAnalyses: [run, ...analysis.testAnalyses],

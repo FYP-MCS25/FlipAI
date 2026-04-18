@@ -2,6 +2,8 @@ import { Brain, BarChart3, Sparkles, ChevronDown, ChevronUp } from 'lucide-react
 
 interface CounterfactualCombination {
   id: number;
+  confidence?: number | null;
+  combinedScore?: number | null;
   features: { name: string; value: string }[];
 }
 
@@ -158,15 +160,30 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
             <div className="space-y-4">
               {analysis.diceAnalysis.combinations.map((combination) => (
                 <div key={combination.id} className="bg-black/30 rounded-lg p-4 border border-white/5">
-                  <p className="text-white/70 font-medium mb-3 text-sm">Counterfactual #{combination.id}</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {combination.features.map((feature, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm gap-4">
-                        <span className="text-white/60">{feature.name}</span>
-                        <span className="text-green-400 font-medium">{feature.value}</span>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-sm">
+                    <p className="text-white/70 font-medium">Counterfactual #{combination.id}</p>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
+                      {combination.confidence !== null && combination.confidence !== undefined && (
+                        <span>Confidence: {(combination.confidence * 100).toFixed(1)}%</span>
+                      )}
+                      {combination.combinedScore !== null && combination.combinedScore !== undefined && (
+                        <span>Score: {combination.combinedScore.toFixed(3)}</span>
+                      )}
+                    </div>
                   </div>
+
+                  {combination.features.length === 0 ? (
+                    <p className="text-white/40 text-sm">No feature-change details were returned for this option.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
+                      {combination.features.map((feature, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm gap-4">
+                          <span className="text-white/60">{feature.name}</span>
+                          <span className="text-green-400 font-medium">{feature.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
