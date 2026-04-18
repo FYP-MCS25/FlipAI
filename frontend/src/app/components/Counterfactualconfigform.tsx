@@ -1,5 +1,11 @@
 import { useState } from 'react';
 import { ArrowLeft, Target, Lock, FlaskConical } from 'lucide-react';
+import {
+  coerceInputDataForPrediction,
+  getTopPredictionConfidence,
+  mapShapTopFeatures,
+  requestPredictionWithShap,
+} from '../services/predictionFlow';
 
 // --- Types --------------------------------------------------------------------
 
@@ -18,13 +24,39 @@ export interface CounterfactualConfig {
   instanceValues: Record<string, string>;
 }
 
+// Payload returned to Dashboard so it can build run history without owning API logic.
+export interface PredictionSubmissionPayload {
+  predictionInput: Record<string, string | number>;
+  predictionResult: {
+    prediction_id?: number;
+    prediction_value?: number;
+    prediction_class?: string;
+    prediction_probabilities?: Record<string, number> | null;
+    shap_explanation?: {
+      feature_importance?: Array<{
+        feature?: string;
+        abs_shap_value?: number;
+      }>;
+      base_value?: number;
+    } | null;
+  } | null;
+  predictionError: string | null;
+  shapTopFeatures: Array<{ name: string; importance: number }>;
+  topConfidence: number | null;
+}
+
 interface CounterfactualConfigFormProps {
   datasetName: string;
   targetFeature: string;
   frozenFeatures: string[];
+  modelId: number | null;
   featureMetas: FeatureMeta[];   // all columns with type metadata
   onBack: () => void;
-  onSubmit: (config: CounterfactualConfig) => void;
+  onPredictionRequestStateChange?: (isRunning: boolean) => void;
+  onSubmit: (
+    config: CounterfactualConfig,
+    prediction: PredictionSubmissionPayload
+  ) => Promise<void> | void;
 }
 
 // --- Numeric operator button group --------------------------------------------
@@ -60,8 +92,10 @@ export function CounterfactualConfigForm({
   datasetName,
   targetFeature,
   frozenFeatures,
+  modelId,
   featureMetas,
   onBack,
+  onPredictionRequestStateChange,
   onSubmit,
 }: CounterfactualConfigFormProps) {
   const targetMeta = featureMetas.find((f) => f.name === targetFeature)!;
@@ -79,6 +113,7 @@ export function CounterfactualConfigForm({
 
   // upload status
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const setField = (name: string, val: string) =>
     setInstanceValues((prev) => ({ ...prev, [name]: val }));
@@ -145,12 +180,71 @@ export function CounterfactualConfigForm({
   const allFilled = instanceFeatures.every((f) => instanceValues[f.name]?.trim() !== '');
   const canSubmit = conditionValid && allFilled;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    onSubmit({
-      targetCondition: { feature: targetFeature, op, value: targetValue },
-      instanceValues,
-    });
+
+    if (modelId === null) {
+      alert('Model training is not completed yet. Please wait for training to finish before running prediction and SHAP.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      onPredictionRequestStateChange?.(true);
+
+      // Step 1: Coerce string inputs to backend-friendly numeric types when applicable.
+      const predictionInput = coerceInputDataForPrediction(
+        instanceValues,
+        featureMetas.map((meta) => ({
+          name: meta.name,
+          dataType: meta.type,
+        }))
+      );
+
+      // Step 2: Request prediction + SHAP from backend.
+      const { predictionResult, predictionError } = await requestPredictionWithShap(
+        modelId,
+        predictionInput
+      );
+
+      const predictionProbabilities =
+        predictionResult?.prediction_probabilities &&
+        typeof predictionResult.prediction_probabilities === 'object'
+          ? Object.fromEntries(
+              Object.entries(predictionResult.prediction_probabilities).filter(
+                ([, value]) => typeof value === 'number' && Number.isFinite(value)
+              )
+            )
+          : null;
+
+      const shapTopFeatures = mapShapTopFeatures(predictionResult?.shap_explanation || null);
+      const topConfidence = getTopPredictionConfidence(predictionProbabilities);
+
+      // Step 3: Pass both counterfactual config and prediction payload back to parent state.
+      await onSubmit({
+        targetCondition: { feature: targetFeature, op, value: targetValue },
+        instanceValues,
+      }, {
+        predictionInput,
+        predictionResult:
+          predictionResult && predictionProbabilities
+            ? {
+                ...predictionResult,
+                prediction_probabilities: predictionProbabilities,
+              }
+            : predictionResult,
+        predictionError,
+        shapTopFeatures,
+        topConfidence,
+      });
+
+      if (predictionError) {
+        alert(`Prediction request failed. The run was saved with error details.\n\n${predictionError}`);
+      }
+    } finally {
+      onPredictionRequestStateChange?.(false);
+      setIsSubmitting(false);
+    }
   };
 
   // -- Helpers --
@@ -329,6 +423,7 @@ export function CounterfactualConfigForm({
                 type="file"
                 accept=".csv"
                 onChange={handleCSVUpload}
+                disabled={isSubmitting}
                 className="hidden"
               />
             </label>
@@ -401,14 +496,14 @@ export function CounterfactualConfigForm({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!canSubmit}
+              disabled={!canSubmit || isSubmitting}
               className="
                 shrink-0 px-6 py-2.5 rounded-lg font-medium text-sm transition-all
                 bg-blue-600 hover:bg-blue-500 text-white
                 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600
               "
             >
-              Generate Counterfactuals
+              {isSubmitting ? 'Generating...' : 'Generate Counterfactuals'}
             </button>
           </div>
         </div>
