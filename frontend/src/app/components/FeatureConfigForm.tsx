@@ -5,8 +5,40 @@ interface FeatureConfigFormProps {
   datasetName: string;
   datasetId: string;
   features: string[];
+  datasetColumns: DatasetColumnMeta[];
   targetFeature: string; // Now passed in from parent
-  onConfirm: (config: { targetFeature: string; frozenFeatures: string[] }) => void;
+  onConfirm: (
+    config: { targetFeature: string; frozenFeatures: string[] },
+    createdAnalysis: AnalysisCreateResponse
+  ) => void;
+  onTrainingUpdate: (update: TrainingUpdate) => void;
+}
+
+export interface DatasetColumnMeta {
+  name: string;
+  data_type: string;
+  unique_values?: string[] | null;
+}
+
+export interface AnalysisCreateResponse {
+  id: number;
+  dataset: number;
+  dataset_name?: string;
+  target_feature?: string;
+  frozen_features?: string[];
+  created_at?: string;
+}
+
+export interface TrainingUpdate {
+  analysisId: string;
+  status: 'running' | 'completed' | 'failed';
+  tone: 'info' | 'success' | 'error';
+  message: string;
+  detail?: string;
+  trainingModelId?: number | null;
+  trainingMetrics?: Record<string, unknown> | null;
+  trainingFeatureImportance?: unknown;
+  trainingError?: string | null;
 }
 
 const FEATURES_PER_PAGE = 10;
@@ -15,8 +47,10 @@ export function FeatureConfigForm({
   datasetName,
   datasetId,
   features,
+  datasetColumns,
   targetFeature,
   onConfirm,
+  onTrainingUpdate,
 }: FeatureConfigFormProps) {
   const [frozenFeatures, setFrozenFeatures] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -59,7 +93,108 @@ export function FeatureConfigForm({
     );
   };
 
+  // Determine task type for training payload based on target metadata.
+  const inferTaskType = (): 'classification' | 'regression' => {
+    const targetMeta = datasetColumns.find((column) => column.name === targetFeature);
+    if (!targetMeta) return 'classification';
+
+    const normalizedDataType = targetMeta.data_type.toLowerCase();
+    if (
+      normalizedDataType.includes('object') ||
+      normalizedDataType.includes('category') ||
+      normalizedDataType.includes('bool')
+    ) {
+      return 'classification';
+    }
+
+    if (Array.isArray(targetMeta.unique_values) && targetMeta.unique_values.length <= 20) {
+      return 'classification';
+    }
+
+    return 'regression';
+  };
+
+  // Training API call is handled here so Start Analysis flow stays in one place.
+  const trainModelForAnalysis = async (analysisId: string) => {
+    if (selectableFeatures.length === 0) {
+      onTrainingUpdate({
+        analysisId,
+        status: 'failed',
+        tone: 'error',
+        message: 'Training failed to start.',
+        detail: 'No feature columns are available after excluding the target feature.',
+        trainingError: 'No feature columns are available after excluding the target feature.',
+      });
+      return;
+    }
+
+    const trainPayload = {
+      model_name: `${datasetName}-analysis-${analysisId}`,
+      model_type: 'xgboost',
+      task_type: 'classification', // inferTaskType(),
+      dataset_id: Number(datasetId),
+      target_column: targetFeature,
+      feature_columns: selectableFeatures,
+      train_test_split: 0.8,
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/models/train/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(trainPayload),
+      });
+
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+      } catch {
+        responseData = {};
+      }
+
+      if (!response.ok) {
+        const fallbackMessage = 'Training request failed.';
+        const message =
+          responseData?.error ||
+          responseData?.detail ||
+          (typeof responseData === 'string' ? responseData : fallbackMessage);
+
+        throw new Error(message);
+      }
+
+      onTrainingUpdate({
+        analysisId,
+        status: 'completed',
+        tone: 'success',
+        message: 'Training completed successfully.',
+        detail:
+          typeof responseData?.model_id === 'number'
+            ? `Model ID: ${responseData.model_id}`
+            : 'Model output is ready to use.',
+        trainingModelId: typeof responseData?.model_id === 'number' ? responseData.model_id : null,
+        trainingMetrics:
+          responseData?.metrics && typeof responseData.metrics === 'object'
+            ? responseData.metrics
+            : null,
+        trainingFeatureImportance: responseData?.feature_importance ?? null,
+        trainingError: null,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown training error.';
+      onTrainingUpdate({
+        analysisId,
+        status: 'failed',
+        tone: 'error',
+        message: 'Training failed.',
+        detail: message,
+        trainingError: message,
+      });
+      console.error('Auto-training failed:', error);
+    }
+  };
+
   const handleConfirm = async () => {
+    // 1) Persist analysis configuration.
     const payload = {
       target_feature: targetFeature,
       frozen_features: frozenFeatures,
@@ -82,7 +217,21 @@ export function FeatureConfigForm({
 
       const data = await response.json();
       console.log('Analysis saved:', data);
-      onConfirm({ targetFeature, frozenFeatures });
+
+      const analysisId = data?.id != null ? String(data.id) : Date.now().toString();
+
+      onConfirm({ targetFeature, frozenFeatures }, data);
+
+      // 2) Trigger model training and report status updates back to Dashboard.
+      onTrainingUpdate({
+        analysisId,
+        status: 'running',
+        tone: 'info',
+        message: 'Training started.',
+        detail: `Building baseline model for ${datasetName}...`,
+      });
+
+      await trainModelForAnalysis(analysisId);
     } catch (error) {
       console.error('Error while saving analysis:', error);
       alert('Error while starting analysis. Check console.');

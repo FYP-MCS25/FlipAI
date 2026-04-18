@@ -4,11 +4,26 @@ import { AnalysisPanel } from './AnalysisPanel';
 import { EmptyAnalysisState } from './EmptyAnalysisState';
 import { UploadModal } from './UploadModal';
 import { ExistingDatasetModal } from './ExistingDatasetModal';
-import { FeatureConfigForm } from './FeatureConfigForm';
+import {
+  FeatureConfigForm,
+  type AnalysisCreateResponse,
+  type TrainingUpdate,
+} from './FeatureConfigForm';
 import { CounterfactualConfigForm, type CounterfactualConfig } from './Counterfactualconfigform';
 import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
+
+type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+type TrainingBannerTone = 'info' | 'success' | 'error';
+
+interface TrainingBanner {
+  analysisId: string;
+  status: TrainingStatus;
+  tone: TrainingBannerTone;
+  message: string;
+  detail?: string;
+}
 
 interface Analysis {
   id: string;
@@ -19,6 +34,11 @@ interface Analysis {
   frozenFeatures: string[];
   testAnalyses: TestAnalysis[];
   createdAt: Date;
+  trainingStatus: TrainingStatus;
+  trainingModelId: number | null;
+  trainingMetrics: Record<string, unknown> | null;
+  trainingFeatureImportance: unknown;
+  trainingError: string | null;
 }
 
 interface DatasetColumn {
@@ -95,6 +115,11 @@ export function Dashboard() {
           modelName: a.model_name || 'Random Forest Classifier',
           testAnalyses: [],
           createdAt: new Date(a.created_at),
+          trainingStatus: 'idle',
+          trainingModelId: null,
+          trainingMetrics: null,
+          trainingFeatureImportance: null,
+          trainingError: null,
         };
         });
         console.log('Loaded analyses:', loadedAnalyses);
@@ -136,6 +161,23 @@ export function Dashboard() {
   const [pendingConfig, setPendingConfig] = useState<PendingConfig | null>(null);
   const [counterfactualEntrySource, setCounterfactualEntrySource] =
     useState<CounterfactualEntrySource | null>(null);
+  const [trainingBanner, setTrainingBanner] = useState<TrainingBanner | null>(null);
+
+  useEffect(() => {
+    if (!trainingBanner || trainingBanner.status === 'running') return;
+
+    const timeout = window.setTimeout(() => {
+      setTrainingBanner((current) =>
+        current &&
+        current.analysisId === trainingBanner.analysisId &&
+        current.status === trainingBanner.status
+          ? null
+          : current
+      );
+    }, 6000);
+
+    return () => window.clearTimeout(timeout);
+  }, [trainingBanner]);
 
   // TODO(auth): Replace with authenticated user profile returned by auth/session API.
   const [user] = useState({ name: 'John Doe', email: 'john.doe@example.com' });
@@ -152,6 +194,45 @@ export function Dashboard() {
     columnNames: dataset.column_names ?? [],
     columns: dataset.columns ?? [],
   });
+
+  const updateAnalysisTraining = (analysisId: string, updates: Partial<Analysis>) => {
+    setAnalyses((prev) =>
+      prev.map((analysis) => (analysis.id === analysisId ? { ...analysis, ...updates } : analysis))
+    );
+  };
+
+  // Training API is triggered inside FeatureConfigForm; Dashboard only consumes updates.
+  const handleTrainingUpdate = (update: TrainingUpdate) => {
+    const analysisUpdates: Partial<Analysis> = {
+      trainingStatus: update.status,
+    };
+
+    if (update.trainingModelId !== undefined) {
+      analysisUpdates.trainingModelId = update.trainingModelId;
+    }
+    if (update.trainingMetrics !== undefined) {
+      analysisUpdates.trainingMetrics = update.trainingMetrics;
+    }
+    if (update.trainingFeatureImportance !== undefined) {
+      analysisUpdates.trainingFeatureImportance = update.trainingFeatureImportance;
+    }
+    if (update.trainingError !== undefined) {
+      analysisUpdates.trainingError = update.trainingError;
+    }
+    if (update.status === 'completed' && update.trainingError === undefined) {
+      analysisUpdates.trainingError = null;
+    }
+
+    updateAnalysisTraining(update.analysisId, analysisUpdates);
+
+    setTrainingBanner({
+      analysisId: update.analysisId,
+      status: update.status,
+      tone: update.tone,
+      message: update.message,
+      detail: update.detail,
+    });
+  };
 
   const upsertDataset = (dataset: Dataset) => {
     setExistingDatasets((prev) => {
@@ -313,20 +394,45 @@ export function Dashboard() {
   };
 
   /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
-  const handleFeatureConfigConfirm = (config: { targetFeature: string; frozenFeatures: string[] }) => {
-    setPendingConfig(config);
+  const handleFeatureConfigConfirm = (
+    config: { targetFeature: string; frozenFeatures: string[] },
+    createdAnalysis: AnalysisCreateResponse
+  ) => {
+    const datasetSnapshot = pendingDataset;
+    if (!datasetSnapshot) {
+      console.error('Cannot continue analysis flow without pending dataset metadata.');
+      clearPendingFlow();
+      return;
+    }
+
+    const persistedAnalysisId =
+      createdAnalysis?.id != null ? String(createdAnalysis.id) : Date.now().toString();
+    const persistedDatasetId =
+      createdAnalysis?.dataset != null ? String(createdAnalysis.dataset) : datasetSnapshot.id;
+    const nextTargetFeature = createdAnalysis?.target_feature || config.targetFeature;
+    const nextFrozenFeatures = createdAnalysis?.frozen_features || config.frozenFeatures;
+
+    setPendingConfig({
+      targetFeature: nextTargetFeature,
+      frozenFeatures: nextFrozenFeatures,
+    });
     setCounterfactualEntrySource('new-analysis');
     setAnalysisStep('counterfactual-config');
     
     const newAnalysis: Analysis = {
-      id: Date.now().toString(),
-      datasetId: pendingDataset?.id || 'unknown', 
-      datasetName: pendingDataset?.name || 'unknown',
+      id: persistedAnalysisId,
+      datasetId: persistedDatasetId,
+      datasetName: createdAnalysis?.dataset_name || datasetSnapshot.name,
       modelName: 'Random Forest Classifier',
-      targetFeature: config.targetFeature,
-      frozenFeatures: config.frozenFeatures,
+      targetFeature: nextTargetFeature,
+      frozenFeatures: nextFrozenFeatures,
       testAnalyses: [],
-      createdAt: new Date(),
+      createdAt: createdAnalysis?.created_at ? new Date(createdAnalysis.created_at) : new Date(),
+      trainingStatus: 'running',
+      trainingModelId: null,
+      trainingMetrics: null,
+      trainingFeatureImportance: null,
+      trainingError: null,
     };
     setAnalyses((prev) => [newAnalysis, ...prev]);
     setActiveAnalysis(newAnalysis.id);
@@ -447,8 +553,10 @@ export function Dashboard() {
           datasetName={pendingDataset.name}
           datasetId={pendingDataset.id}
           features={pendingDataset.columnNames}
+          datasetColumns={pendingDataset.columns}
           targetFeature={targetFeature}
           onConfirm={handleFeatureConfigConfirm}
+          onTrainingUpdate={handleTrainingUpdate}
         />
       );
     } 
@@ -544,6 +652,31 @@ export function Dashboard() {
             <span>New Analysis</span>
           </button>
         </div>
+
+        {trainingBanner && (
+          <div
+            className={`mx-3 mt-3 rounded-lg border px-4 py-3 flex items-start justify-between gap-3 ${
+              trainingBanner.tone === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200'
+                : trainingBanner.tone === 'error'
+                ? 'bg-red-500/10 border-red-500/40 text-red-200'
+                : 'bg-blue-500/10 border-blue-500/40 text-blue-200'
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="font-medium">
+                {trainingBanner.status === 'running' ? 'Training in progress' : trainingBanner.message}
+              </p>
+              <p className="text-sm opacity-90 truncate">{trainingBanner.detail}</p>
+            </div>
+            <button
+              onClick={() => setTrainingBanner(null)}
+              className="text-xs uppercase tracking-wide opacity-80 hover:opacity-100 transition-opacity"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {renderMainContent()}
