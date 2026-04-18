@@ -1,6 +1,8 @@
 import { FileBarChart, Trash2, PanelLeftClose, User } from 'lucide-react';
 import { useState } from 'react';
 
+type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+
 interface Analysis {
   id: string;
   datasetId: string;  
@@ -8,6 +10,7 @@ interface Analysis {
   targetFeature: string;
   frozenFeatures: string[];
   createdAt: Date;
+  trainingStatus: TrainingStatus;
 }
 
 interface AnalysisSidebarProps {
@@ -28,6 +31,35 @@ export function AnalysisSidebar({
   onOpenProfile,
 }: AnalysisSidebarProps) {
   const [hoveredAnalysis, setHoveredAnalysis] = useState<string | null>(null);
+
+  const statusMeta = (status: TrainingStatus) => {
+    if (status === 'running') {
+      return {
+        label: 'Training',
+        className: 'text-blue-300',
+        dotClassName: 'bg-blue-400',
+      };
+    }
+    if (status === 'completed') {
+      return {
+        label: 'Ready',
+        className: 'text-emerald-300',
+        dotClassName: 'bg-emerald-400',
+      };
+    }
+    if (status === 'failed') {
+      return {
+        label: 'Failed',
+        className: 'text-red-300',
+        dotClassName: 'bg-red-400',
+      };
+    }
+    return {
+      label: 'Idle',
+      className: 'text-white/50',
+      dotClassName: 'bg-white/40',
+    };
+  };
 
   const formatDateTime = (date: Date) => {
     const now = new Date();
@@ -57,7 +89,10 @@ export function AnalysisSidebar({
               No analyses yet. Upload a dataset to get started.
             </div>
           ) : (
-            analyses.map((analysis) => (
+            analyses.map((analysis) => {
+              const trainingStatus = statusMeta(analysis.trainingStatus);
+
+              return (
               <div
                 key={analysis.id}
                 className={`group relative flex items-start gap-3 px-3 py-3 rounded-lg cursor-pointer transition-colors ${
@@ -74,8 +109,12 @@ export function AnalysisSidebar({
                   <div className="text-sm font-medium truncate text-white">
                     {analysis.datasetName}
                   </div>
-                  <div className="text-xs text-white/40 mt-0.5">
-                    {formatDateTime(analysis.createdAt)}
+                  <div className="text-xs text-white/40 mt-0.5 flex items-center gap-2">
+                    <span>{formatDateTime(analysis.createdAt)}</span>
+                    <span className={`inline-flex items-center gap-1 ${trainingStatus.className}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${trainingStatus.dotClassName}`} />
+                      <span>{trainingStatus.label}</span>
+                    </span>
                   </div>
                 </div>
                 {hoveredAnalysis === analysis.id && (
@@ -90,7 +129,8 @@ export function AnalysisSidebar({
                   </button>
                 )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

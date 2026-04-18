@@ -633,6 +633,11 @@ export function Dashboard() {
           modelName={currentAnalysis.modelName}
           targetFeature={currentAnalysis.targetFeature}
           frozenFeatures={currentAnalysis.frozenFeatures}
+          trainingStatus={currentAnalysis.trainingStatus}
+          trainingModelId={currentAnalysis.trainingModelId}
+          trainingMetrics={currentAnalysis.trainingMetrics}
+          trainingFeatureImportance={currentAnalysis.trainingFeatureImportance}
+          trainingError={currentAnalysis.trainingError}
           analyses={currentAnalysis.testAnalyses}
           onOpenInputForm={handleOpenCounterfactualInputForm}
         />
