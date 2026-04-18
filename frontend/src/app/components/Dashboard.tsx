@@ -16,6 +16,7 @@ import { PanelLeft, Plus, User } from 'lucide-react';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
 type TrainingBannerTone = 'info' | 'success' | 'error';
+type DashboardLoadingKind = 'dataset-upload' | 'model-training';
 
 interface TrainingBanner {
   analysisId: string;
@@ -23,6 +24,12 @@ interface TrainingBanner {
   tone: TrainingBannerTone;
   message: string;
   detail?: string;
+}
+
+interface DashboardLoadingOverlay {
+  kind: DashboardLoadingKind;
+  title: string;
+  detail: string;
 }
 
 interface Analysis {
@@ -162,6 +169,7 @@ export function Dashboard() {
   const [counterfactualEntrySource, setCounterfactualEntrySource] =
     useState<CounterfactualEntrySource | null>(null);
   const [trainingBanner, setTrainingBanner] = useState<TrainingBanner | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState<DashboardLoadingOverlay | null>(null);
 
   useEffect(() => {
     if (!trainingBanner || trainingBanner.status === 'running') return;
@@ -224,6 +232,18 @@ export function Dashboard() {
     }
 
     updateAnalysisTraining(update.analysisId, analysisUpdates);
+
+    if (update.status === 'running') {
+      setDashboardLoading({
+        kind: 'model-training',
+        title: 'Training model',
+        detail: update.detail || 'Please wait while the model is being trained.',
+      });
+    } else {
+      setDashboardLoading((current) =>
+        current?.kind === 'model-training' ? null : current
+      );
+    }
 
     setTrainingBanner({
       analysisId: update.analysisId,
@@ -332,6 +352,12 @@ export function Dashboard() {
     formData.append('file', file);
     formData.append('name', datasetName); // send it to backend
 
+    setDashboardLoading({
+      kind: 'dataset-upload',
+      title: 'Uploading dataset',
+      detail: 'Uploading file and preparing dataset metadata...',
+    });
+
     try {
       const response = await fetch('http://localhost:8000/api/v1/datasets/', {
         method: 'POST',
@@ -345,9 +371,22 @@ export function Dashboard() {
 
       const uploadedDataset = await response.json();
 
+      setDashboardLoading({
+        kind: 'dataset-upload',
+        title: 'Processing dataset',
+        detail: 'Cleaning rows and extracting feature statistics...',
+      });
+
       await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/process/`, {
         method: 'POST',
       });
+
+      setDashboardLoading({
+        kind: 'dataset-upload',
+        title: 'Finalizing dataset',
+        detail: 'Loading processed dataset into the analysis flow...',
+      });
+
       const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
       const fullDataset = await fullDatasetRes.json();
       const parsedDataset = toDataset(fullDataset);
@@ -370,6 +409,10 @@ export function Dashboard() {
       setUploadModalOpen(false);
     } catch (err) {
       console.error(err);
+    } finally {
+      setDashboardLoading((current) =>
+        current?.kind === 'dataset-upload' ? null : current
+      );
     }
   };
 
@@ -603,7 +646,7 @@ export function Dashboard() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="h-dvh w-full flex bg-black text-white overflow-hidden">
+    <div className="h-dvh w-full flex bg-black text-white overflow-hidden relative">
       {sidebarOpen && (
         <AnalysisSidebar
           analyses={analyses}
@@ -702,6 +745,16 @@ export function Dashboard() {
         onClose={() => setProfileModalOpen(false)}
         user={user}
       />
+
+      {dashboardLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-xl border border-white/15 bg-neutral-900/90 p-6 text-center">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-blue-400" />
+            <h3 className="text-lg font-semibold text-white">{dashboardLoading.title}</h3>
+            <p className="mt-2 text-sm text-white/70">{dashboardLoading.detail}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
