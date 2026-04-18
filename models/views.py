@@ -105,15 +105,6 @@ class MLModelViewSet(viewsets.ModelViewSet):
                 'status': 'training failed',
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-    
-    @action(detail=True, methods=['post'])
-    def predict(self, request, pk=None):
-        """
-        Make prediction with this model
-        """
-        model = self.get_object()
-        # TODO: Implement prediction logic
-        return Response({'status': 'prediction endpoint - not implemented yet'})
 
 
 class TrainingJobViewSet(viewsets.ReadOnlyModelViewSet):

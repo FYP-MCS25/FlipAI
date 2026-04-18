@@ -8,7 +8,12 @@ interface CounterfactualCombination {
 export interface TestAnalysis {
   testId: string;
   timestamp: Date;
-  inputData: Record<string, string>;
+  inputData: Record<string, string | number>;
+  predictionId?: number | null;
+  predictionClass?: string | null;
+  predictionValue?: number | null;
+  predictionProbabilities?: Record<string, number> | null;
+  predictionError?: string | null;
   llmSummary: string;
   shapAnalysis: {
     topFeatures: { name: string; importance: number }[];
@@ -27,6 +32,15 @@ interface CollapsibleAnalysisProps {
 }
 
 export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: CollapsibleAnalysisProps) {
+  const bestConfidence = analysis.predictionProbabilities
+    ? (() => {
+        const values = Object.values(analysis.predictionProbabilities || {}).filter(
+          (value): value is number => typeof value === 'number' && Number.isFinite(value)
+        );
+        return values.length > 0 ? Math.max(...values) : null;
+      })()
+    : null;
+    
   return (
     <div className="border-b border-white/10 last:border-b-0">
       <button
@@ -60,10 +74,33 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
               {Object.entries(analysis.inputData).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between text-sm gap-4">
                   <span className="text-white/60 truncate">{key}</span>
-                  <span className="text-white font-medium truncate">{value}</span>
+                  <span className="text-white font-medium truncate">{String(value)}</span>
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+            <h3 className="text-sm font-medium text-white/70 uppercase tracking-wide mb-3">Prediction Result</h3>
+
+            {analysis.predictionError ? (
+              <p className="text-sm text-red-300/90">{analysis.predictionError}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p className="text-white/80">
+                  Predicted class: <span className="text-white font-medium">{analysis.predictionClass ?? 'N/A'}</span>
+                </p>
+                {analysis.predictionValue !== null && analysis.predictionValue !== undefined && (
+                  <p className="text-white/70">Raw prediction value: {analysis.predictionValue}</p>
+                )}
+                {bestConfidence !== null && (
+                  <p className="text-white/70">Top confidence: {(bestConfidence * 100).toFixed(1)}%</p>
+                )}
+                {analysis.predictionId !== null && analysis.predictionId !== undefined && (
+                  <p className="text-white/60">Prediction ID: {analysis.predictionId}</p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="bg-white/5 rounded-lg border border-white/10 p-4">
@@ -86,22 +123,26 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
 
             <p className="text-white/80 text-sm mb-4">{analysis.shapAnalysis.summary}</p>
 
-            <div className="space-y-3">
-              {analysis.shapAnalysis.topFeatures.map((feature, index) => (
-                <div key={index} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white">{feature.name}</span>
-                    <span className="text-white/60">{(feature.importance * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
-                      style={{ width: `${feature.importance * 100}%` }}
-                    />
-                  </div>
+            {analysis.shapAnalysis.topFeatures.length === 0 ? (
+              <p className="text-white/50 text-sm">No SHAP feature importance data is available for this run.</p>
+            ) : (
+              <div className="space-y-3">
+                {analysis.shapAnalysis.topFeatures.map((feature, index) => (
+                  <div key={index} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white">{feature.name}</span>
+                      <span className="text-white/60">{(feature.importance * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
+                        style={{ width: `${Math.max(0, Math.min(100, feature.importance * 100))}%` }}
+                      />
+                    </div>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white/5 rounded-lg border border-white/10 p-4">

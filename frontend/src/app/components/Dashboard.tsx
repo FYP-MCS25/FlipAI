@@ -9,14 +9,18 @@ import {
   type AnalysisCreateResponse,
   type TrainingUpdate,
 } from './FeatureConfigForm';
-import { CounterfactualConfigForm, type CounterfactualConfig } from './Counterfactualconfigform';
+import {
+  CounterfactualConfigForm,
+  type CounterfactualConfig,
+  type PredictionSubmissionPayload,
+} from './Counterfactualconfigform';
 import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
 type TrainingBannerTone = 'info' | 'success' | 'error';
-type DashboardLoadingKind = 'dataset-upload' | 'model-training';
+type DashboardLoadingKind = 'dataset-upload' | 'model-training' | 'prediction';
 
 interface TrainingBanner {
   analysisId: string;
@@ -481,10 +485,12 @@ export function Dashboard() {
     setActiveAnalysis(newAnalysis.id);
   };
 
-  const buildMockCounterfactualRun = (
+  // Build the UI run record by combining submitted config with the prediction payload from form.
+  const buildCounterfactualRun = (
     config: CounterfactualConfig,
     analysis: Analysis,
-    featurePool: string[]
+    featurePool: string[],
+    prediction: PredictionSubmissionPayload
   ): TestAnalysis => {
     const runNumber = (analysis.testAnalyses?.length ?? 0) + 1;
     const variableFeatures = featurePool.filter(
@@ -493,23 +499,47 @@ export function Dashboard() {
     const selectedFeatures =
       variableFeatures.length > 0 ? variableFeatures : Object.keys(config.instanceValues);
 
-    // MOCK OUTPUT: Replace this generated object with the API response payload
-    // from the counterfactual explanation endpoint when backend integration is ready.
+    const shapSummary = prediction.predictionError
+      ? `Prediction and SHAP request failed: ${prediction.predictionError}`
+      : prediction.shapTopFeatures.length > 0
+      ? 'SHAP explanation generated from backend prediction endpoint.'
+      : 'Prediction completed but SHAP feature importance was unavailable for this run.';
+
+    const llmSummary = prediction.predictionError
+      ? `Prediction failed for run #${runNumber}. Backend returned an error before counterfactual generation.\n\nError: ${prediction.predictionError}`
+      : `Prediction completed for run #${runNumber}. Predicted class: ${prediction.predictionResult?.prediction_class ?? 'N/A'}${
+          prediction.topConfidence !== null
+            ? ` (top confidence ${(prediction.topConfidence * 100).toFixed(1)}%)`
+            : ''
+        }. LLM explanation wiring is scheduled for Phase 6.`;
+
+    // Keep DiCE output mocked in Phase 4; Phase 5 replaces this with backend counterfactual data.
     return {
       testId: runNumber.toString(),
       timestamp: new Date(),
-      inputData: config.instanceValues,
-      llmSummary:
-        `Mock summary for run #${runNumber}. The requested target condition is ` +
-        `${config.targetCondition.feature} ${config.targetCondition.op} ${config.targetCondition.value}. ` +
-        `The model indicates the most influential features for this instance are listed below.`,
+      inputData: prediction.predictionInput,
+      predictionId:
+        typeof prediction.predictionResult?.prediction_id === 'number'
+          ? prediction.predictionResult.prediction_id
+          : null,
+      predictionClass:
+        typeof prediction.predictionResult?.prediction_class === 'string'
+          ? prediction.predictionResult.prediction_class
+          : null,
+      predictionValue:
+        typeof prediction.predictionResult?.prediction_value === 'number'
+          ? prediction.predictionResult.prediction_value
+          : null,
+      predictionProbabilities:
+        prediction.predictionResult?.prediction_probabilities &&
+        typeof prediction.predictionResult.prediction_probabilities === 'object'
+          ? prediction.predictionResult.prediction_probabilities
+          : null,
+      predictionError: prediction.predictionError,
+      llmSummary,
       shapAnalysis: {
-        summary:
-          'Mock SHAP explanation: feature attributions shown here should be replaced by backend SHAP values.',
-        topFeatures: selectedFeatures.slice(0, 5).map((name, idx) => ({
-          name,
-          importance: Math.max(0.12, 0.88 - idx * 0.15),
-        })),
+        summary: shapSummary,
+        topFeatures: prediction.shapTopFeatures,
       },
       diceAnalysis: {
         summary:
@@ -526,8 +556,17 @@ export function Dashboard() {
   };
 
   /** Called when user clicks "Generate Counterfactuals" in CounterfactualConfigForm. */
-  const handleCounterfactualConfigSubmit = (config: CounterfactualConfig) => {
+  const handleCounterfactualConfigSubmit = (
+    config: CounterfactualConfig,
+    prediction: PredictionSubmissionPayload
+  ) => {
     if (!activeAnalysis) {
+      clearPendingFlow();
+      return;
+    }
+
+    const analysisSnapshot = analyses.find((analysis) => analysis.id === activeAnalysis);
+    if (!analysisSnapshot) {
       clearPendingFlow();
       return;
     }
@@ -537,7 +576,12 @@ export function Dashboard() {
     setAnalyses((prev) =>
       prev.map((analysis) => {
         if (analysis.id !== activeAnalysis) return analysis;
-        const run = buildMockCounterfactualRun(config, analysis, featurePool);
+        const run = buildCounterfactualRun(
+          config,
+          analysis,
+          featurePool,
+          prediction
+        );
         return {
           ...analysis,
           testAnalyses: [run, ...analysis.testAnalyses],
@@ -546,6 +590,22 @@ export function Dashboard() {
     );
 
     clearPendingFlow();
+  };
+
+  // Keep prediction loading overlay managed in Dashboard while API call stays in form layer.
+  const handlePredictionRequestStateChange = (isRunning: boolean) => {
+    if (isRunning) {
+      setDashboardLoading({
+        kind: 'prediction',
+        title: 'Running prediction',
+        detail: 'Generating prediction and SHAP explanation for this input...',
+      });
+      return;
+    }
+
+    setDashboardLoading((current) =>
+      current?.kind === 'prediction' ? null : current
+    );
   };
 
   const handleOpenCounterfactualInputForm = () => {
@@ -618,8 +678,10 @@ export function Dashboard() {
           datasetName={pendingDataset.name}
           targetFeature={pendingConfig.targetFeature}
           frozenFeatures={pendingConfig.frozenFeatures}
+          modelId={currentAnalysis?.trainingModelId ?? null}
           featureMetas={featureMetas}
           onBack={handleCounterfactualBack}
+          onPredictionRequestStateChange={handlePredictionRequestStateChange}
           onSubmit={handleCounterfactualConfigSubmit}
         />
       );
