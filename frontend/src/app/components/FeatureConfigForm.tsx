@@ -1,4 +1,5 @@
 import { Lock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LoadingOverlay } from './ui/loading-overlay';
 import { useState, useMemo } from 'react';
 
 interface FeatureConfigFormProps {
@@ -55,6 +56,7 @@ export function FeatureConfigForm({
   const [frozenFeatures, setFrozenFeatures] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Exclude the target feature from the selectable list
   const selectableFeatures = useMemo(
@@ -93,29 +95,47 @@ export function FeatureConfigForm({
     );
   };
 
-  // Determine task type for training payload based on target metadata.
-  const inferTaskType = (): 'classification' | 'regression' => {
-    const targetMeta = datasetColumns.find((column) => column.name === targetFeature);
-    if (!targetMeta) return 'classification';
+  // --- Utility: Build model training payload ---
+  const buildTrainPayload = (analysisId: string) => ({
+    model_name: `${datasetName}-analysis-${analysisId}`,
+    model_type: 'xgboost', // If dynamic, pass as param
+    task_type: 'classification', // If dynamic, pass as param
+    dataset_id: Number(datasetId),
+    target_column: targetFeature,
+    feature_columns: selectableFeatures,
+    train_test_split: 0.8,
+  });
 
-    const normalizedDataType = targetMeta.data_type.toLowerCase();
-    if (
-      normalizedDataType.includes('object') ||
-      normalizedDataType.includes('category') ||
-      normalizedDataType.includes('bool')
-    ) {
-      return 'classification';
-    }
-
-    if (Array.isArray(targetMeta.unique_values) && targetMeta.unique_values.length <= 20) {
-      return 'classification';
-    }
-
-    return 'regression';
+  // --- Utility: Build analysis creation payload ---
+  const buildAnalysisPayload = (modelId: number) => {
+    const featureList = features.filter(
+      (f) => f !== targetFeature && !frozenFeatures.includes(f)
+    );
+    return {
+      target_feature: targetFeature,
+      frozen_features: frozenFeatures,
+      dataset: Number(datasetId),
+      model: modelId,
+      analysis_name: datasetName,
+      description: "",
+      model_type: "xgboost",
+      feature_list: featureList,
+      num_features: featureList.length,
+      status: "active",
+      error_message: "",
+    };
   };
 
-  // Training API call is handled here so Start Analysis flow stays in one place.
-  const trainModelForAnalysis = async (analysisId: string) => {
+  // --- Utility: Handle API errors ---
+  const handleApiError = (context: string, error: any, fallbackMsg = 'Unknown error') => {
+    const msg = error?.error || error?.detail || (typeof error === 'string' ? error : fallbackMsg);
+    console.error(`${context} failed:`, error);
+    alert(`${context} failed. Check console.`);
+    return msg;
+  };
+
+  // --- API: Train model ---
+  const trainModelForAnalysis = async (analysisId: string): Promise<number | null> => {
     if (selectableFeatures.length === 0) {
       onTrainingUpdate({
         analysisId,
@@ -125,53 +145,35 @@ export function FeatureConfigForm({
         detail: 'No feature columns are available after excluding the target feature.',
         trainingError: 'No feature columns are available after excluding the target feature.',
       });
-      return;
+      return null;
     }
-
-    const trainPayload = {
-      model_name: `${datasetName}-analysis-${analysisId}`,
-      model_type: 'xgboost',
-      task_type: 'classification', // inferTaskType(),
-      dataset_id: Number(datasetId),
-      target_column: targetFeature,
-      feature_columns: selectableFeatures,
-      train_test_split: 0.8,
-    };
-
     try {
       const response = await fetch('http://localhost:8000/api/v1/models/train/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(trainPayload),
+        body: JSON.stringify(buildTrainPayload(analysisId)),
       });
-
-      let responseData: any = {};
-      try {
-        responseData = await response.json();
-      } catch {
-        responseData = {};
-      }
-
+      const responseData = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const fallbackMessage = 'Training request failed.';
-        const message =
-          responseData?.error ||
-          responseData?.detail ||
-          (typeof responseData === 'string' ? responseData : fallbackMessage);
-
-        throw new Error(message);
+        const msg = handleApiError('Training', responseData, 'Training request failed.');
+        onTrainingUpdate({
+          analysisId,
+          status: 'failed',
+          tone: 'error',
+          message: 'Training failed.',
+          detail: msg,
+          trainingError: msg,
+        });
+        return null;
       }
-
+      const modelId = typeof responseData?.model_id === 'number' ? responseData.model_id : null;
       onTrainingUpdate({
         analysisId,
         status: 'completed',
         tone: 'success',
         message: 'Training completed successfully.',
-        detail:
-          typeof responseData?.model_id === 'number'
-            ? `Model ID: ${responseData.model_id}`
-            : 'Model output is ready to use.',
-        trainingModelId: typeof responseData?.model_id === 'number' ? responseData.model_id : null,
+        detail: modelId ? `Model ID: ${modelId}` : 'Model output is ready to use.',
+        trainingModelId: modelId,
         trainingMetrics:
           responseData?.metrics && typeof responseData.metrics === 'object'
             ? responseData.metrics
@@ -179,67 +181,81 @@ export function FeatureConfigForm({
         trainingFeatureImportance: responseData?.feature_importance ?? null,
         trainingError: null,
       });
+      return modelId;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown training error.';
+      const msg = handleApiError('Training', error, 'Unknown training error.');
       onTrainingUpdate({
         analysisId,
         status: 'failed',
         tone: 'error',
         message: 'Training failed.',
-        detail: message,
-        trainingError: message,
+        detail: msg,
+        trainingError: msg,
       });
-      console.error('Auto-training failed:', error);
+      return null;
     }
   };
 
   const handleConfirm = async () => {
-    // 1) Persist analysis configuration.
-    const payload = {
-      target_feature: targetFeature,
-      frozen_features: frozenFeatures,
-      dataset: Number(datasetId),
-    };
-
+    setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/analyses/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      // 1) Trigger model training using trainModelForAnalysis, then create analysis only if training succeeds
+      const tempAnalysisId = Date.now().toString();
+      const modelId = await trainModelForAnalysis(tempAnalysisId);
 
-      if (!response.ok) {
-        const errData = await response.json();
-        console.error('Failed to save analysis', errData);
-        alert('Failed to start analysis. Check console.');
+      if (!modelId) {
+        onTrainingUpdate({
+          analysisId: '',
+          status: 'failed',
+          tone: 'error',
+          message: 'Training failed.',
+          detail: 'Model training did not return a model ID.',
+          trainingError: 'Model training did not return a model ID.',
+        });
         return;
       }
 
-      const data = await response.json();
-      console.log('Analysis saved:', data);
-
-      const analysisId = data?.id != null ? String(data.id) : Date.now().toString();
-
-      onConfirm({ targetFeature, frozenFeatures }, data);
-
-      // 2) Trigger model training and report status updates back to Dashboard.
-      onTrainingUpdate({
-        analysisId,
-        status: 'running',
-        tone: 'info',
-        message: 'Training started.',
-        detail: `Building baseline model for ${datasetName}...`,
-      });
-
-      await trainModelForAnalysis(analysisId);
-    } catch (error) {
-      console.error('Error while saving analysis:', error);
-      alert('Error while starting analysis. Check console.');
+      // 2) Now create the analysis, including the modelId and all required fields
+      try {
+        const analysisPayload = buildAnalysisPayload(modelId);
+        const response = await fetch('http://localhost:8000/api/v1/analyses/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(analysisPayload),
+        });
+        const responseData = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const msg = handleApiError('Analysis creation', responseData, 'Failed to create analysis.');
+          return;
+        }
+        const analysisId = responseData?.id != null ? String(responseData.id) : Date.now().toString();
+        onConfirm({ targetFeature, frozenFeatures }, responseData);
+        onTrainingUpdate({
+          analysisId,
+          status: 'completed',
+          tone: 'success',
+          message: 'Training completed and analysis created.',
+          detail: '',
+          trainingModelId: modelId,
+        });
+      } catch (error) {
+        const msg = handleApiError('Analysis creation', error, 'Unknown error');
+        onTrainingUpdate({
+          analysisId: '',
+          status: 'failed',
+          tone: 'error',
+          message: 'Analysis creation failed.',
+          detail: msg,
+          trainingError: msg,
+        });
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto relative">
       <div className="max-w-4xl mx-auto p-8 space-y-8">
         {/* Header */}
         <div className="space-y-2">
@@ -387,13 +403,17 @@ export function FeatureConfigForm({
             </div>
             <button
               onClick={handleConfirm}
-              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors flex items-center justify-center gap-2"
+              disabled={isLoading}
             >
               Start Analysis
             </button>
           </div>
         </div>
       </div>
+      {isLoading && (
+        <LoadingOverlay title="Starting analysis" detail="Training model and creating analysis..." />
+      )}
     </div>
   );
 }

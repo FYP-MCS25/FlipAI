@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlaskConical, Upload } from 'lucide-react';
+import { FlaskConical, Upload, ArrowLeft } from 'lucide-react';
 import { CollapsibleAnalysis, type TestAnalysis } from './CollapsibleAnalysis';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
@@ -124,9 +124,19 @@ export function AnalysisPanel({
 
   const topImportanceEntries = featureImportanceMap
     ? Object.entries(featureImportanceMap)
-        .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
-        .sort((a, b) => Number(b[1]) - Number(a[1]))
-        .slice(0, 5)
+      .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .slice(0, 5)
+      .map(([feature, value]) => {
+        let displayFeature = feature;
+        if (displayFeature.includes('_')) {
+          const parts = displayFeature.split('_');
+          const root = parts[0];
+          const val = parts.slice(1).join('_');
+          displayFeature = `${root} (${val})`;
+        }
+        return [displayFeature, value] as [string, unknown];
+      })
     : [];
 
   const importanceError =
@@ -135,10 +145,21 @@ export function AnalysisPanel({
       : null;
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto relative">
+      {/* Back button - sits at top-left, outside the centered content column */}
+      <button
+        onClick={onOpenInputForm}
+        className="absolute top-6 left-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
+        title="Back"
+      >
+        <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+
       <div className="max-w-5xl mx-auto p-8 space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-white">{datasetName}</h1>
+          <div className="flex items-center gap-4 mb-2">
+            <h1 className="text-3xl font-semibold text-white">{datasetName}</h1>
+          </div>
           <p className="text-white/60">Model: {modelName}</p>
           <div className="flex flex-wrap gap-2 mt-3">
             <span className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-sm">
@@ -162,11 +183,6 @@ export function AnalysisPanel({
 
           <p className="text-sm text-white/70">{statusMeta.description}</p>
 
-          {trainingModelId !== null && (
-            <p className="text-sm text-white/60">
-              Model ID: <span className="text-white font-medium">{trainingModelId}</span>
-            </p>
-          )}
 
           {metricEntries.length > 0 && (
             <div className="space-y-2">
@@ -227,10 +243,10 @@ export function AnalysisPanel({
 
           <button
             onClick={onOpenInputForm}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-full transition-all text-white font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 whitespace-nowrap"
           >
             <Upload className="w-4 h-4" />
-            Upload Entry
+            Upload New Entry
           </button>
         </div>
 

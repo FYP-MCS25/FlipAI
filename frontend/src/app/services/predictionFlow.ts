@@ -58,6 +58,7 @@ export interface CounterfactualDisplayCombination {
   confidence?: number | null;
   combinedScore?: number | null;
   features: { name: string; value: string }[];
+  explanation?: string;
 }
 
 // Convert string form inputs into numeric values when metadata marks the feature as numeric.
@@ -115,10 +116,20 @@ export const mapShapTopFeatures = (
 
   const maxAbs = Math.max(...ranked.map((item) => item.abs_shap_value), 0);
 
-  return ranked.map((item) => ({
-    name: item.feature,
-    importance: maxAbs > 0 ? item.abs_shap_value / maxAbs : 0,
-  }));
+  return ranked.map((item) => {
+    let displayFeatureName = item.feature;
+    if (displayFeatureName.includes('_')) {
+      const parts = displayFeatureName.split('_');
+      const root = parts[0];
+      const val = parts.slice(1).join('_');
+      displayFeatureName = `${root} (${val})`;
+    }
+
+    return {
+      name: displayFeatureName,
+      importance: maxAbs > 0 ? item.abs_shap_value / maxAbs : 0,
+    };
+  });
 };
 
 // Pick the highest probability from prediction probabilities for summary display.
@@ -247,6 +258,54 @@ export const requestCounterfactuals = async (
   }
 };
 
+export const requestExplanation = async (
+  predictionId: number,
+  expectedOutcome: string,
+  counterfactualCombinations: any
+): Promise<{ explanation: any; error: string | null }> => {
+  try {
+    const response = await fetch(`http://localhost:8000/api/v1/predictions/${predictionId}/explain/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        expected_outcome: expectedOutcome,
+        counterfactual_combinations: counterfactualCombinations,
+      }),
+    });
+
+    let responseData: any = {};
+    try {
+      responseData = await response.json();
+    } catch {
+      responseData = {};
+    }
+
+    if (!response.ok) {
+      const message =
+        responseData?.error ||
+        responseData?.detail ||
+        (typeof responseData === 'string' ? responseData : 'Explanation request failed.');
+
+      return {
+        explanation: null,
+        error: message,
+      };
+    }
+
+    return {
+      explanation: responseData.explanation,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      explanation: null,
+      error: error instanceof Error ? error.message : 'Unknown explanation error.',
+    };
+  }
+};
+
 const toDisplayValue = (value: unknown): string => {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'object') return JSON.stringify(value);
@@ -257,14 +316,21 @@ const mapOptionToFeatures = (option: CounterfactualOptionPayload): { name: strin
   const featureChanges = option.feature_changes;
 
   if (featureChanges && typeof featureChanges === 'object') {
-    const changeRows = Object.entries(featureChanges).map(([featureName, details]) => {
-      const original = toDisplayValue(details?.original);
-      const counterfactual = toDisplayValue(details?.counterfactual);
-      return {
-        name: featureName,
-        value: `${original} -> ${counterfactual}`,
-      };
-    });
+    const changeRows = Object.entries(featureChanges)
+      .filter(([, details]) => {
+        const original = toDisplayValue(details?.original);
+        const counterfactual = toDisplayValue(details?.counterfactual);
+        // Exclude features where there is no actual change
+        return original !== counterfactual;
+      })
+      .map(([featureName, details]) => {
+        const original = toDisplayValue(details?.original);
+        const counterfactual = toDisplayValue(details?.counterfactual);
+        return {
+          name: featureName,
+          value: `${original} -> ${counterfactual}`,
+        };
+      });
 
     if (changeRows.length > 0) return changeRows;
   }
@@ -281,10 +347,44 @@ const mapOptionToFeatures = (option: CounterfactualOptionPayload): { name: strin
   return [];
 };
 
-// Flatten grouped counterfactual options into top-ranked cards for the current UI.
+// Group counterfactuals for the LLM to choose the best variant from
+export const prepareCounterfactualGroupsForLLM = (
+  counterfactualResult: CounterfactualResponsePayload | null,
+  maxGroups = 5,
+  maxPerGroup = 3
+): { groupName: string; options: CounterfactualDisplayCombination[] }[] => {
+  const grouped = counterfactualResult?.grouped_counterfactuals;
+  if (!grouped || typeof grouped !== 'object') return [];
+
+  let globalIdCount = 1;
+
+  return Object.entries(grouped)
+    .slice(0, maxGroups)
+    .map(([groupName, groupOptions]) => {
+      if (!Array.isArray(groupOptions)) return { groupName, options: [] };
+      const ranked = groupOptions
+        .map((option) => ({
+          confidence: typeof option.confidence === 'number' ? option.confidence : null,
+          combinedScore: typeof option.combined_score === 'number' ? option.combined_score : null,
+          features: mapOptionToFeatures(option),
+        }))
+        .filter((o) => o.features.length > 0)
+        .sort((a, b) => (b.combinedScore || 0) - (a.combinedScore || 0))
+        .slice(0, maxPerGroup)
+        .map(opt => ({
+          ...opt,
+          id: globalIdCount++,
+        }));
+
+      return { groupName, options: ranked };
+    })
+    .filter(g => g.options.length > 0);
+};
+
+// Original flatten function modified to just parse the chosen subset
 export const mapCounterfactualsToDisplayCombinations = (
   counterfactualResult: CounterfactualResponsePayload | null,
-  maxItems = 6
+  maxItems = 5
 ): CounterfactualDisplayCombination[] => {
   const grouped = counterfactualResult?.grouped_counterfactuals;
   if (!grouped || typeof grouped !== 'object') return [];

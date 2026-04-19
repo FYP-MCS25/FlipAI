@@ -17,6 +17,8 @@ import {
 import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
+import { LoadingOverlay } from './ui/loading-overlay';
+import { fetchAnalyses, fetchDatasets, fetchDatasetById, deleteAnalysis } from '../services/dashboardService';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
 type TrainingBannerTone = 'info' | 'success' | 'error';
@@ -108,56 +110,39 @@ interface PendingConfig {
 export function Dashboard() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   useEffect(() => {
-    const fetchAnalyses = async () => {
+    const loadAnalyses = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/v1/analyses/');
-        if (!res.ok) throw new Error('Failed to fetch analyses');
-        const data = await res.json();
-        // Transform API data into your Analysis type
-        const loadedAnalyses: Analysis[] = data.results.map((a: any) => {
-          const datasetId = a.dataset_id ?? a.dataset;
-
-          return {
-          id: a.id.toString(),
-          targetFeature: a.target_feature,
-          frozenFeatures: a.frozen_features,
-          datasetName: a.dataset_name,
-          datasetId: datasetId != null ? String(datasetId) : '',
-          modelName: a.model_name || 'Random Forest Classifier',
+        const loadedAnalyses = await fetchAnalyses();
+        const formattedAnalyses = loadedAnalyses.map(a => ({
+          ...a,
           testAnalyses: [],
-          createdAt: new Date(a.created_at),
-          trainingStatus: 'idle',
+          trainingStatus: 'idle' as TrainingStatus,
           trainingModelId: null,
           trainingMetrics: null,
           trainingFeatureImportance: null,
           trainingError: null,
-        };
-        });
-        console.log('Loaded analyses:', loadedAnalyses);
-        setAnalyses(loadedAnalyses);
-        if (loadedAnalyses.length > 0) setActiveAnalysis(loadedAnalyses[0].id);
+        }));
+        setAnalyses(formattedAnalyses);
+        if (formattedAnalyses.length > 0) setActiveAnalysis(formattedAnalyses[0].id);
       } catch (err) {
         console.error('Error fetching analyses:', err);
       }
     };
-
-    fetchAnalyses();
+    loadAnalyses();
   }, []);
 
   const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
   useEffect(() => {
-    const fetchDatasets = async () => {
+    const loadDatasets = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/v1/datasets/');
-        if (!res.ok) throw new Error('Failed to fetch datasets');
-        const data = await res.json();
-        const datasets: Dataset[] = data.results.map((d: any) => toDataset(d));
+        const results = await fetchDatasets();
+        const datasets: Dataset[] = results.map((d: any) => toDataset(d));
         setExistingDatasets(datasets);
       } catch (err) {
         console.error(err);
       }
     };
-    fetchDatasets();
+    loadDatasets();
   }, []);
 
   const [activeAnalysis, setActiveAnalysis] = useState<string | null>('1');
@@ -470,7 +455,7 @@ export function Dashboard() {
       id: persistedAnalysisId,
       datasetId: persistedDatasetId,
       datasetName: createdAnalysis?.dataset_name || datasetSnapshot.name,
-      modelName: 'Random Forest Classifier',
+      modelName: 'XGBoost Classifier',
       targetFeature: nextTargetFeature,
       frozenFeatures: nextFrozenFeatures,
       testAnalyses: [],
@@ -500,11 +485,11 @@ export function Dashboard() {
 
     const llmSummary = prediction.predictionError
       ? `Prediction failed for run #${runNumber}. Backend returned an error before counterfactual generation.\n\nError: ${prediction.predictionError}`
-      : `Prediction completed for run #${runNumber}. Predicted class: ${prediction.predictionResult?.prediction_class ?? 'N/A'}${
+      : prediction.llmSummary || `Prediction completed for run #${runNumber}. Predicted class: ${prediction.predictionResult?.prediction_class ?? 'N/A'}${
           prediction.topConfidence !== null
             ? ` (top confidence ${(prediction.topConfidence * 100).toFixed(1)}%)`
             : ''
-        }. LLM explanation wiring is scheduled for Phase 6.`;
+        }. No LLM summary was returned.`;
 
     // DiCE section is now populated from backend counterfactual response payload.
     return {
@@ -793,13 +778,7 @@ export function Dashboard() {
       />
 
       {dashboardLoading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-xl border border-white/15 bg-neutral-900/90 p-6 text-center">
-            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-blue-400" />
-            <h3 className="text-lg font-semibold text-white">{dashboardLoading.title}</h3>
-            <p className="mt-2 text-sm text-white/70">{dashboardLoading.detail}</p>
-          </div>
-        </div>
+        <LoadingOverlay title={dashboardLoading.title} detail={dashboardLoading.detail} />
       )}
     </div>
   );
