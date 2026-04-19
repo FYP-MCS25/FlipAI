@@ -10,6 +10,8 @@ import {
   mapShapTopFeatures,
   requestCounterfactuals,
   requestPredictionWithShap,
+  requestExplanation,
+  prepareCounterfactualGroupsForLLM,
 } from '../services/predictionFlow';
 
 // --- Types --------------------------------------------------------------------
@@ -52,6 +54,7 @@ export interface PredictionSubmissionPayload {
   counterfactualError: string | null;
   counterfactualCombinations: CounterfactualDisplayCombination[];
   counterfactualSummary: string;
+  llmSummary?: string | null;
 }
 
 interface CounterfactualConfigFormProps {
@@ -245,8 +248,49 @@ export function CounterfactualConfigForm({
         counterfactualError = 'Counterfactual request skipped because prediction id is unavailable.';
       }
 
-      const counterfactualCombinations = mapCounterfactualsToDisplayCombinations(counterfactualResult);
+      let counterfactualCombinations = mapCounterfactualsToDisplayCombinations(counterfactualResult);
       const counterfactualSummary = buildCounterfactualSummary(counterfactualResult, counterfactualError);
+      
+      let llmSummary: string | null = null;
+      if (typeof predictionResult?.prediction_id === 'number' && !counterfactualError && counterfactualCombinations.length > 0) {
+        
+        // Prepare the nested groups for the LLM to choose from
+        const groupedForLLM = prepareCounterfactualGroupsForLLM(counterfactualResult);
+        
+        const explainResponse = await requestExplanation(
+          predictionResult.prediction_id,
+          targetValue,
+          groupedForLLM
+        );
+
+        if (explainResponse.error) {
+           llmSummary = `LLM Explanation Failed: ${explainResponse.error}`;
+        } else if (explainResponse.explanation?.summary) {
+           llmSummary = explainResponse.explanation.summary;
+        }
+
+        if (explainResponse.explanation?.options) {
+           const options = explainResponse.explanation.options;
+           
+           // Flatten all available options that were sent to the LLM
+           const allSentOptions = groupedForLLM.flatMap((g: any) => g.options);
+           
+           // Only keep the options that the LLM explicitly selected
+           const selectedCombinations: any[] = [];
+           
+           options.forEach((o: any) => {
+               const match = allSentOptions.find((opt: any) => String(opt.id) === String(o.selected_variant_id));
+               if (match) {
+                   selectedCombinations.push({ ...match, explanation: o.explanation });
+               }
+           });
+           
+           // Replace the default static slicing with the LLM's dynamically filtered selections
+           if (selectedCombinations.length > 0) {
+              counterfactualCombinations = selectedCombinations;
+           }
+        }
+      }
 
       // Step 3: Pass both counterfactual config and prediction payload back to parent state.
       await onSubmit({
@@ -268,6 +312,7 @@ export function CounterfactualConfigForm({
         counterfactualError,
         counterfactualCombinations,
         counterfactualSummary,
+        llmSummary,
       });
 
       if (predictionError) {
@@ -321,18 +366,21 @@ export function CounterfactualConfigForm({
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto relative">
+      {/* Back button - absolute positioned outside the content column */}
+      <button
+        type="button"
+        onClick={onBack}
+        className="absolute top-6 left-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
+        title="Back"
+      >
+        <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
+      </button>
+
       <div className="max-w-3xl mx-auto p-8 space-y-10">
 
         {/* -- Page header -- */}
         <div className="flex items-start gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mt-1 p-2 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-colors shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-white/30 mb-1">{datasetName}</p>
             <h1 className="text-2xl font-semibold text-white">Configure Counterfactual Query</h1>

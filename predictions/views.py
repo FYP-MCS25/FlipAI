@@ -1,6 +1,7 @@
 """
 Views for prediction, counterfactual generation, and LLM explanations.
 """
+import json
 import os
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -218,42 +219,33 @@ def _build_llm_prompt_context(
 
 
 def _format_counterfactuals_for_llm(
-    grouped_counterfactuals: Dict[str, List[Dict]],
+    counterfactual_groups: List[Dict],
     feature_descriptions: Dict[str, str]
 ) -> str:
     """
-    Format grouped counterfactuals for LLM prompt.
-    
-    Args:
-        grouped_counterfactuals: Dictionary mapping feature combo keys to CF lists
-        feature_descriptions: Dictionary mapping features to descriptions
-        
-    Returns:
-        Formatted string for LLM prompt
+    Format grouped counterfactual combinations for LLM prompt.
     """
-    lines = ["AVAILABLE COUNTERFACTUAL OPTIONS (grouped by feature combinations):\n"]
+    lines = ["AVAILABLE COUNTERFACTUAL GROUPS:\n"]
     
-    for combo_key, cf_list in grouped_counterfactuals.items():
-        features = combo_key.split(',') if combo_key else []
-        lines.append(f"Feature Combination: {', '.join(features)}")
-        
-        # Show top 3-5 from each group
-        for i, cf in enumerate(cf_list[:5], start=1):
-            conf = cf.get('confidence', 0.5)
-            score = cf.get('combined_score', 0.0)
-            changes = cf.get('feature_changes', {})
+    for idx, group in enumerate(counterfactual_groups):
+        lines.append(f"Group {idx + 1} ({group.get('groupName', 'Unknown Features')}):")
+        for option in group.get('options', []):
+            opt_id = option.get('id')
+            confidence = option.get('confidence')
+            conf_str = f" [Confidence: {confidence*100:.1f}%]" if confidence is not None else ""
             
             change_parts = []
-            for k, v in changes.items():
-                desc = feature_descriptions.get(k, "")
+            for feature in option.get('features', []):
+                name = feature.get('name')
+                value = feature.get('value')
+                desc = feature_descriptions.get(name, "")
                 desc_str = f" ({desc})" if desc else ""
-                change_parts.append(f"{k}{desc_str}: {v['original']} → {v['counterfactual']}")
+                change_parts.append(f"{name}{desc_str}: {value}")
             
             changes_str = ", ".join(change_parts)
-            lines.append(f"  Option {i}: [Confidence: {conf*100:.1f}%, Score: {score:.3f}] {changes_str}")
-        
+            lines.append(f"  - Option ID {opt_id}:{conf_str} {changes_str}")
         lines.append("")
-    
+        
     return "\n".join(lines)
 
 
@@ -494,6 +486,10 @@ class PredictionViewSet(viewsets.ModelViewSet):
             # Generate counterfactuals dynamically
             original_input = prediction.input_data
             input_df = pd.DataFrame([original_input])
+            # Coerce continuous features to numeric types to avoid dtype errors
+            for col in continuous_features:
+                if col in input_df.columns:
+                    input_df[col] = pd.to_numeric(input_df[col], errors='coerce')
             
             all_cfs = []
             num_cf = 50  # Start with 50
@@ -628,23 +624,33 @@ class PredictionViewSet(viewsets.ModelViewSet):
         expected_label = request.data.get('expected_outcome_label', expected_outcome)
         predicted_label = request.data.get('predicted_outcome_label', prediction.prediction_class)
         target_description = request.data.get('target_description')
-        grouped_counterfactuals = request.data.get('grouped_counterfactuals', {})
+        counterfactual_combinations = request.data.get('counterfactual_combinations', [])
         
-        # Fetch feature descriptions from database (allow override from request)
+        # Fetch feature and target descriptions from database in one query
         feature_descriptions = request.data.get('feature_descriptions')
-        if not feature_descriptions and prediction.model.dataset:
-            # Auto-fetch from dataset columns
-            columns = DatasetColumn.objects.filter(
-                dataset=prediction.model.dataset,
-                is_feature=True
-            )
-            feature_descriptions = {
-                col.name: col.description
-                for col in columns
-                if col.description  # Only include non-empty descriptions
-            }
-        else:
-            feature_descriptions = feature_descriptions or {}
+        
+        if (not feature_descriptions or not target_description) and prediction.model.dataset:
+            # Fetch all columns at once to avoid multiple queries
+            all_columns = list(DatasetColumn.objects.filter(
+                dataset=prediction.model.dataset
+            ))
+            
+            # Extract feature descriptions
+            if not feature_descriptions:
+                feature_descriptions = {
+                    col.name: col.description
+                    for col in all_columns
+                    if col.is_feature and col.description
+                }
+            
+            # Extract target description (there's always exactly one target column)
+            if not target_description:
+                for col in all_columns:
+                    if col.is_target and col.description:
+                        target_description = col.description
+                        break
+        
+        feature_descriptions = feature_descriptions or {}
 
         try:
             api_key = os.environ.get('GEMINI_API_KEY')
@@ -668,33 +674,37 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 f"CONTEXT:\n"
                 f"The user provided the following data points:\n{input_data_str}\n\n"
                 f"The model initially predicted the outcome to be: {predicted_text}{confidence_str}.\n"
+                f"IMPORTANT: You MUST return your response as a valid JSON object matching this exact structure (with no markdown wrapping or code blocks):\n"
+                f"{{\n"
+                f"  \"summary\": \"Overall summary of the prediction and high-level strategy\",\n"
+                f"  \"options\": [\n"
+                f"    {{\n"
+                f"      \"selected_variant_id\": 1,\n"
+                f"      \"explanation\": \"Detailed explanation of this counterfactual option\"\n"
+                f"    }}\n"
+                f"  ]\n"
+                f"}}\n\n"
             )
 
             # Add counterfactual-based tasks
-            if expected_outcome is not None and grouped_counterfactuals:
+            if expected_outcome is not None and counterfactual_combinations:
                 prompt += f"The user's goal is: {target_text}.\n\n"
-                prompt += _format_counterfactuals_for_llm(grouped_counterfactuals, feature_descriptions)
+                prompt += _format_counterfactuals_for_llm(counterfactual_combinations, feature_descriptions)
                 prompt += (
                     f"\nTASK:\n"
-                    f"1. ANALYZE all the counterfactual options above.\n"
-                    f"2. SELECT the 5 BEST and MOST DIVERSE options that:\n"
-                    f"   - PRIORITIZE options with confidence >= 70% (reject low-confidence options unless no alternatives exist)\n"
-                    f"   - Make logical sense (filter out nonsensical combinations)\n"
-                    f"   - Are actionable for a real person\n"
-                    f"   - Cover different strategies/approaches\n"
-                    f"   - Balance minimal changes with high confidence (confidence is MORE important than minimizing changes)\n"
-                    f"3. For each of your 5 selected options, provide:\n"
-                    f"   - A clear title (e.g., 'Option 1: Increase Investment Income')\n"
-                    f"   - The specific changes needed (use conversational language)\n"
-                    f"   - WHY this path works and HOW to achieve it in real life\n"
-                    f"   - The estimated confidence level\n"
-                    f"4. Start with a brief summary of the original prediction.\n"
-                    f"5. When presenting options, LEAD with the highest-confidence option, not the one with fewest changes.\n"
-                    f"6. DO NOT describe a 50-60% confidence option as 'most approachable' or 'recommended' when higher-confidence options exist.\n"
-                    f"7. DO NOT provide conversational filler or disclaimers.\n"
-                    f"8. Self-translate technical labels into clear English.\n"
-                    f"9. Use active verbs and be concrete.\n\n"
-                    f"Format your response with clear sections for each option."
+                    f"1. ANALYZE all the counterfactual groups above.\n"
+                    f"2. Fill the 'summary' field with a brief summary of the overarching strategy to reach {target_text} in one short sentence.\n"
+                    f"3. For EACH Group provided above, choose the SINGLE most logical/realistic Option ID from its variants.\n"
+                    f"4. Add an object to the 'options' array for each chosen variant.\n"
+                    f"5. IMPORTANT: Set the 'selected_variant_id' field to match your chosen Option ID exactly.\n"
+                    f"6. In each 'explanation' field, you MUST explain EACH feature change in the chosen option separately.\n"
+                    f"   For EVERY feature changed in the option, format it EXACTLY like this (DO NOT output literal brackets or headers):\n"
+                    f"   Increase your weekly work hours from 50 to 55.\n"
+                    f"   - Dedicating slightly more time to your professional role can reinforce your current income trajectory.\n\n"
+                    f"   If there are multiple feature changes in the option, stack them sequentially using the exact same format.\n"
+                    f"   Note: Keep it extremely punchy. Do NOT mention confidence levels, scores, or use long paragraphs.\n"
+                    f"7. Replace technical feature names with plain English. You are provided with the exact descriptions for each feature in parentheses next to the feature names - USE THESE DESCRIPTIONS to accurately explain the adjustments.\n"
+                    f"8. Use active verbs and get straight to the point.\n"
                 )
             
             elif expected_outcome is not None:
@@ -740,11 +750,10 @@ class PredictionViewSet(viewsets.ModelViewSet):
 
             # Handle missing API key
             if not api_key:
-                mock_explanation = (
-                    "This is a simulated LLM explanation. "
-                    "To get real explanations, ensure the GEMINI_API_KEY environment variable is set.\n\n"
-                    f"Based on the prompt we generated: \n\n{prompt}"
-                )
+                mock_explanation = {
+                    "summary": "This is a simulated JSON LLM explanation. To get real explanations, ensure the GEMINI_API_KEY environment variable is set. Base prompt was: " + prompt[:100],
+                    "options": [{"id": c.get('id', 1), "explanation": "Mock explanation for this option"} for c in counterfactual_combinations]
+                }
                 return Response({'explanation': mock_explanation}, status=status.HTTP_200_OK)
 
             # Call Gemini API
@@ -754,12 +763,28 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 system_instruction=(
                     "You are a helpful analyst who translates machine learning data into clear, "
                     "human-friendly advice. You always pick the most empathetic and actionable way "
-                    "to describe technical features. When selecting from multiple options, you prioritize "
-                    "diversity, actionability, and logical coherence."
+                    "to describe technical features. You MUST ALWAYS output valid JSON matching the user's structure."
                 )
             )
             response = model.generate_content(prompt)
-            return Response({'explanation': response.text}, status=status.HTTP_200_OK)
+            
+            response_text = response.text
+            import re
+            # Clean up potential markdown code block artifacts
+            response_text = re.sub(r'^```json\s*', '', response_text)
+            response_text = re.sub(r'^```\s*', '', response_text)
+            response_text = re.sub(r'```$', '', response_text.strip())
+            
+            try:
+                explanation_data = json.loads(response_text)
+            except Exception as parse_err:
+                # If Gemini completely fails to output JSON, just wrap the raw text text in the expected structure.
+                explanation_data = {
+                    "summary": f"Failed to parse AI output as JSON. Raw output:\n{response_text}",
+                    "options": []
+                }
+
+            return Response({'explanation': explanation_data}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({
