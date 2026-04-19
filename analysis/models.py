@@ -23,7 +23,7 @@ class Analysis(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('user', 'dataset', 'analysis_name')
+        pass
 
     def __str__(self):
         return f"Analysis {self.id} - {self.analysis_name} ({self.dataset.name})"
