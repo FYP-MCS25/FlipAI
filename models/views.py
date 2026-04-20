@@ -8,6 +8,7 @@ import uuid
 import pandas as pd
 from django.conf import settings
 from datasets.models import Dataset
+from datasets.models import DatasetColumn
 from datasets.utils import load_clean_dataset
 from .utils import build_and_train_pipeline, save_model
 
@@ -51,6 +52,31 @@ class MLModelViewSet(viewsets.ModelViewSet):
                 status='running',
                 train_test_split=data.get('train_test_split', 0.8)
             )
+
+            label_mapping = None  # will be None for numeric targets
+
+            try:
+                target_col_record = DatasetColumn.objects.get(
+                    dataset=dataset,
+                    name=data['target_column']
+                )
+                dropdown_values = target_col_record.get_dropdown_values()
+
+                if dropdown_values:
+                    # Map each unique value to its index position in the dropdown list
+                    # e.g. ['No', 'Yes'] -> {'No': 0, 'Yes': 1}
+                    label_mapping = {val: idx for idx, val in enumerate(dropdown_values)}
+                    df[data['target_column']] = df[data['target_column']].map(label_mapping)
+
+                    # Catch unmapped values (values in data but missing from dropdown_values)
+                    if df[data['target_column']].isna().any():
+                        raise ValueError(
+                            f"Target column '{data['target_column']}' contains values not "
+                            f"found in dropdown list: {dropdown_values}"
+                        )
+
+            except DatasetColumn.DoesNotExist:
+                pass  # No column metadata - leave target as-is (numeric targets)
             
             # Train pipeline (this is blocking but we'll do it synchronously for simplicity in this endpoint)
             pipeline, metrics, importance, _ = build_and_train_pipeline(

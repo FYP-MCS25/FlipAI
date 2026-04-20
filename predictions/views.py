@@ -461,6 +461,26 @@ class PredictionViewSet(viewsets.ModelViewSet):
             target_name = ml_model.target_name
             model_wrapper = PipelineWrapper(pipeline)
 
+            try:
+                target_col_record = DatasetColumn.objects.get(
+                    dataset=dataset,
+                    name=target_name
+                )
+                dropdown_values = target_col_record.get_dropdown_values()
+
+                if dropdown_values:
+                    label_mapping = {val: idx for idx, val in enumerate(dropdown_values)}
+                    df[target_name] = df[target_name].map(label_mapping)
+
+                    # Catch unmapped values (values in data but missing from dropdown_values)
+                    if df[target_name].isna().any():
+                        raise ValueError(
+                            f"found in dropdown list: {dropdown_values}"
+                        )
+
+            except DatasetColumn.DoesNotExist:
+                pass  
+
             d = dice_ml.Data(
                 dataframe=df,
                 continuous_features=continuous_features,
@@ -482,6 +502,10 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 features_to_vary = [f for f in ml_model.feature_names if f not in frozen]
             
             desired_class = _parse_desired_class(data.get('desired_class', "opposite"))
+
+            # Map string desired_class to int using label_mapping (e.g. 'Yes' -> 1, 'No' -> 0)
+            if label_mapping and isinstance(desired_class, str) and desired_class in label_mapping:
+                desired_class = label_mapping[desired_class]
             
             # Generate counterfactuals dynamically
             original_input = prediction.input_data
@@ -792,7 +816,6 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-
 # ----------------------------------------------------------------------------
 #                           Counterfactual ViewSet
 # ----------------------------------------------------------------------------
@@ -810,7 +833,6 @@ class CounterfactualViewSet(viewsets.ReadOnlyModelViewSet):
         if prediction_id:
             queryset = queryset.filter(prediction_id=prediction_id)
         return queryset
-
 
 # ----------------------------------------------------------------------------
 #                       Counterfactual Search ViewSet
