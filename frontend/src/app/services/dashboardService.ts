@@ -8,6 +8,7 @@ export interface DashboardAnalysis {
   modelName: string;
   targetFeature: string;
   frozenFeatures: string[];
+  explanation?: string; // Optional field if you want to include it in the list fetch
   createdAt: Date;
 }
 
@@ -70,4 +71,13 @@ export const deleteAnalysis = async (id: string): Promise<void> => {
     },
   });
   if (!res.ok) throw new Error('Failed to delete analysis');
+};
+
+/**
+ * Retrieves the saved Strategy Guide (explanation) for a specific prediction.
+ */
+export const fetchSavedExplanation = async (predictionId: string): Promise<any> => {
+  const res = await fetch(`${API_BASE}/predictions/${predictionId}/explanation/`);
+  if (!res.ok) throw new Error('Failed to fetch saved explanation');
+  return res.json();
 };

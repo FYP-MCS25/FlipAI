@@ -1,7 +1,7 @@
 import { FileBarChart, Trash2, PanelLeftClose, User } from 'lucide-react';
 import { useState } from 'react';
 
-type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+type TrainingStatus = 'running' | 'completed' | 'failed';
 
 interface Analysis {
   id: string;
@@ -40,13 +40,6 @@ export function AnalysisSidebar({
         dotClassName: 'bg-blue-400',
       };
     }
-    if (status === 'completed') {
-      return {
-        label: 'Ready',
-        className: 'text-emerald-300',
-        dotClassName: 'bg-emerald-400',
-      };
-    }
     if (status === 'failed') {
       return {
         label: 'Failed',
@@ -54,10 +47,11 @@ export function AnalysisSidebar({
         dotClassName: 'bg-red-400',
       };
     }
+    // Default fallback for 'completed' or any other state
     return {
-      label: 'Idle',
-      className: 'text-white/50',
-      dotClassName: 'bg-white/40',
+      label: 'Ready',
+      className: 'text-emerald-300',
+      dotClassName: 'bg-emerald-400',
     };
   };
 

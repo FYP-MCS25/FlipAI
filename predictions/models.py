@@ -18,6 +18,9 @@ class Prediction(models.Model):
     prediction_class = models.CharField(max_length=255, null=True, blank=True)
     prediction_probabilities = models.JSONField(null=True, blank=True)
     
+    # AI Explanations
+    llm_summary = models.JSONField(null=True, blank=True)
+    
     # User and timestamps
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -55,6 +58,9 @@ class Counterfactual(models.Model):
     # Feature changes with details
     feature_changes = models.JSONField()  # Detailed change information
     
+    # AI-generated strategy guide/explanation for this specific counterfactual
+    explanation = models.TextField(null=True, blank=True)
+
     # Ranking (for multiple counterfactuals)
     rank = models.IntegerField(default=1)
     
@@ -125,4 +131,3 @@ class CounterfactualSearch(models.Model):
     
     def __str__(self):
         return f"Search for Prediction {self.prediction.id} - {self.status}"
-

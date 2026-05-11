@@ -11,7 +11,8 @@ interface FeatureConfigFormProps {
   targetFeature: string; // Now passed in from parent
   onConfirm: (
     config: { targetFeature: string; frozenFeatures: string[] },
-    createdAnalysis: AnalysisCreateResponse
+    createdAnalysis: AnalysisCreateResponse, // This is the response from the analysis creation API
+    modelId: number // Pass the actual modelId that was trained
   ) => void;
   onTrainingUpdate: (update: TrainingUpdate) => void;
 }
@@ -29,6 +30,7 @@ export interface AnalysisCreateResponse {
   target_feature?: string;
   frozen_features?: string[];
   created_at?: string;
+  model?: number;
 }
 
 export interface TrainingUpdate {
@@ -245,7 +247,7 @@ export function FeatureConfigForm({
           return;
         }
         const analysisId = responseData?.id != null ? String(responseData.id) : Date.now().toString();
-        onConfirm({ targetFeature, frozenFeatures }, responseData);
+        onConfirm({ targetFeature, frozenFeatures }, responseData, modelId); // Pass modelId here
         onTrainingUpdate({
           analysisId,
           status: 'completed',

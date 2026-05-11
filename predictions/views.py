@@ -226,13 +226,25 @@ def _format_counterfactuals_for_llm(
 ) -> str:
     """
     Format grouped counterfactual combinations for LLM prompt.
+    Handles both a list of group objects or a dictionary of groups.
     """
     lines = ["AVAILABLE COUNTERFACTUAL GROUPS:\n"]
     
-    for idx, group in enumerate(counterfactual_groups):
-        lines.append(f"Group {idx + 1} ({group.get('groupName', 'Unknown Features')}):")
-        for option in group.get('options', []):
-            opt_id = option.get('id')
+    # Convert dict to list if necessary (handles raw grouped_counterfactuals from frontend)
+    if isinstance(counterfactual_groups, dict):
+        groups_to_process = []
+        for key, options in counterfactual_groups.items():
+            groups_to_process.append({'groupName': key, 'options': options})
+    else:
+        groups_to_process = counterfactual_groups
+    
+    for idx, group in enumerate(groups_to_process):
+        group_name = group.get('groupName') or group.get('feature_combo') or f"Group {idx+1}"
+        lines.append(f"Group {idx + 1} ({group_name}):")
+        
+        options = group.get('options') or []
+        for option in options:
+            opt_id = option.get('rank') or option.get('id')
             confidence = option.get('confidence')
             conf_str = f" [Confidence: {confidence*100:.1f}%]" if confidence is not None else ""
             
@@ -589,35 +601,20 @@ class PredictionViewSet(viewsets.ModelViewSet):
             
             grouped = group_counterfactuals_by_features(all_cfs)
             
-            # Format grouped results
-            grouped_results = {}
-            for combo_key, cf_list in grouped.items():
-                sorted_cfs = sorted(cf_list, key=lambda x: x['combined_score'], reverse=True)
-                grouped_results[combo_key] = [
-                    {
-                        'counterfactual_data': cf['counterfactual_data'],
-                        'counterfactual_class': cf['counterfactual_class'],
-                        'confidence': cf['confidence'],
-                        'feature_changes': cf['feature_changes'],
-                        'num_changes': cf['num_changes'],
-                        'changed_features': cf['changed_features'],
-                        'combined_score': cf['combined_score'],
-                    }
-                    for cf in sorted_cfs
-                ]
-            
-            # Save top 5 to database for backwards compatibility
-            top_cfs = select_top_counterfactuals_by_diversity(all_cfs, original_input, top_n=5)
+            # Select the best representative from each unique feature combination
+            diverse_cfs = select_top_counterfactuals_by_diversity(all_cfs, original_input, top_n=len(grouped))
             prediction.counterfactuals.all().delete()
             
-            for rank, cf in enumerate(top_cfs, start=1):
+            # Persist these representatives to the database to generate IDs
+            saved_cf_map = {} # Map combo_key -> saved DB object
+            for rank, cf in enumerate(diverse_cfs, start=1):
                 score = calculate_actionability_score(cf['feature_changes'])
-                Counterfactual.objects.create(
+                db_cf = Counterfactual.objects.create(
                     prediction=prediction,
                     counterfactual_data=cf['counterfactual_data'],
-                    counterfactual_prediction=cf['counterfactual_prediction'],
+                    counterfactual_prediction=cf.get('counterfactual_prediction', 0.0),
                     counterfactual_class=cf['counterfactual_class'],
-                    distance=float(cf['num_changes']),
+                    distance=cf.get('combined_score', float(cf['num_changes'])),
                     num_changes=cf['num_changes'],
                     changed_features=cf['changed_features'],
                     feature_changes=cf['feature_changes'],
@@ -625,12 +622,27 @@ class PredictionViewSet(viewsets.ModelViewSet):
                     actionability_score=score,
                     rank=rank
                 )
+                cf['id'] = db_cf.id
+                cf['rank'] = rank
+                saved_cf_map[cf['_feature_combo']] = cf
+
+            # Build grouped results using the saved IDs for the representative of each group
+            grouped_results = {}
+            for combo_key, cf_list in grouped.items():
+                sorted_cfs = sorted(cf_list, key=lambda x: x['combined_score'], reverse=True)
+                # Ensure the first item (representative) has the DB ID
+                if combo_key in saved_cf_map:
+                    sorted_cfs[0]['id'] = saved_cf_map[combo_key]['id']
+                    sorted_cfs[0]['rank'] = saved_cf_map[combo_key]['rank']
+                
+                grouped_results[combo_key] = sorted_cfs
             
             return Response({
                 'status': 'counterfactuals generated',
                 'total_generated': len(all_cfs),
                 'unique_feature_combinations': len(grouped),
-                'grouped_counterfactuals': grouped_results
+                'grouped_counterfactuals': grouped_results,
+                'top_5': diverse_cfs[:5]
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
@@ -727,10 +739,10 @@ class PredictionViewSet(viewsets.ModelViewSet):
                     f"\nTASK:\n"
                     f"1. ANALYZE all the counterfactual groups above.\n"
                     f"2. Fill the 'summary' field with a brief summary of the overarching strategy to reach {target_text} in one short sentence.\n"
-                    f"3. For EACH Group provided above, choose the SINGLE most logical/realistic Option ID from its variants.\n"
-                    f"4. Add an object to the 'options' array for each chosen variant.\n"
-                    f"5. IMPORTANT: Set the 'selected_variant_id' field to match your chosen Option ID exactly.\n"
-                    f"6. In each 'explanation' field, you MUST explain EACH feature change in the chosen option separately.\n"
+                    f"3. You MUST provide a strategy guide for EVERY SINGLE Option ID listed above. Even if they are similar, do NOT combine them.\n"
+                    f"4. The 'options' array MUST contain exactly as many objects as there are Option IDs provided. If 5 IDs are shown, you MUST return 5 objects.\n"
+                    f"5. IMPORTANT: Set the 'selected_variant_id' field to match the numeric Option ID exactly.\n"
+                    f"6. In each 'explanation' field, you MUST explain EACH feature change in that specific option separately.\n"
                     f"   For EVERY feature changed in the option, format it EXACTLY like this (DO NOT output literal brackets or headers):\n"
                     f"   Increase your weekly work hours from 50 to 55.\n"
                     f"   - Dedicating slightly more time to your professional role can reinforce your current income trajectory.\n\n"
@@ -741,9 +753,8 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 )
             
             elif expected_outcome is not None:
-                # Fallback to database counterfactuals
+                # Fallback path: Ensure LLM still returns structured JSON to update the DB
                 prompt += f"The user's goal or expected outcome is: {target_text}.\n\n"
-
                 cfs = prediction.counterfactuals.filter(
                     counterfactual_class=str(expected_outcome)
                 ).order_by('-actionability_score')
@@ -764,14 +775,11 @@ class PredictionViewSet(viewsets.ModelViewSet):
                         prompt += (
                             f"Our system has selected the most realistic path to reach {target_text}:\n\n"
                             f"{changes_str}\n\n"
-                            f"This path carries an estimated new confidence of {chosen_conf*100:.1f}%.\n\n"
                             f"TASK:\n"
-                            f"1. Explain ONLY the changes listed above in a highly concise, bulleted action plan.\n"
-                            f"2. You MUST state the original prediction and how these specific changes flip it to {target_text}.\n"
-                            f"3. IMPORTANT: Self-translate any technical labels or condensed feature names.\n"
-                            f"4. Provide realistic, real-world advice on HOW to achieve each change. Use active verbs.\n"
-                            f"5. DO NOT provide conversational filler.\n\n"
-                            f"Conclude with exactly one line: 'Estimated New Confidence Level: {chosen_conf*100:.1f}% for {expected_label}.'\n"
+                            f"1. Explain these changes using active verbs and plain English.\n"
+                            f"2. Return your response in the EXACT JSON structure defined above.\n"
+                            f"3. Use ID {chosen_cf.id} for the 'selected_variant_id'.\n"
+                            f"4. Set 'summary' to a brief strategy summary.\n"
                         )
                 else:
                     if str(expected_outcome) == str(prediction.prediction_class):
@@ -804,18 +812,58 @@ class PredictionViewSet(viewsets.ModelViewSet):
             response_text = response.text
             import re
             # Clean up potential markdown code block artifacts
-            response_text = re.sub(r'^```json\s*', '', response_text)
-            response_text = re.sub(r'^```\s*', '', response_text)
-            response_text = re.sub(r'```$', '', response_text.strip())
+            response_text = re.sub(r'^```(?:json)?\s*', '', response_text.strip())
+            response_text = re.sub(r'\s*```$', '', response_text)
             
             try:
                 explanation_data = json.loads(response_text)
             except Exception as parse_err:
-                # If Gemini completely fails to output JSON, just wrap the raw text text in the expected structure.
-                explanation_data = {
-                    "summary": f"Failed to parse AI output as JSON. Raw output:\n{response_text}",
-                    "options": []
-                }
+                # Try to find the JSON object within the text if the model included conversational filler
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    try:
+                        explanation_data = json.loads(json_match.group())
+                    except:
+                        explanation_data = {"summary": response_text, "options": []}
+                else:
+                    explanation_data = {"summary": response_text, "options": []}
+            
+            # Persist the summary to the database
+            prediction.llm_summary = explanation_data
+            prediction.save()
+            
+            # Map and save individual strategy guides to counterfactual records
+            options_list = []
+            if isinstance(explanation_data, dict):
+                options_list = explanation_data.get('options', [])
+            elif isinstance(explanation_data, list):
+                options_list = explanation_data
+
+            print(options_list)
+
+            if options_list:
+                for option in options_list:
+                    # Support both standard key and a common LLM fallback key
+                    cf_id = option.get('selected_variant_id') or option.get('id')
+                    cf_text = option.get('explanation')
+                    
+                    if cf_id and cf_text:
+                        try:
+                            # Try updating by rank for this specific prediction first
+                            # (Handles cases where selected_variant_id is the 1-based rank)
+                            updated_count = Counterfactual.objects.filter(
+                                rank=int(cf_id), 
+                                prediction=prediction
+                            ).update(explanation=cf_text)
+                            
+                            # Fallback to primary key 'id' if no match found by rank
+                            if updated_count == 0:
+                                Counterfactual.objects.filter(
+                                    id=int(cf_id), 
+                                    prediction=prediction
+                                ).update(explanation=cf_text)
+                        except (ValueError, TypeError):
+                            continue
 
             return Response({'explanation': explanation_data}, status=status.HTTP_200_OK)
 
@@ -860,4 +908,3 @@ class CounterfactualSearchViewSet(viewsets.ReadOnlyModelViewSet):
         return CounterfactualSearch.objects.filter(
             prediction__created_by=self.request.user
         ).order_by('-created_at')
-
