@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlaskConical, Upload, ArrowLeft } from 'lucide-react';
+import { FlaskConical, Upload } from 'lucide-react';
 import { CollapsibleAnalysis, type TestAnalysis } from './CollapsibleAnalysis';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
@@ -146,15 +146,6 @@ export function AnalysisPanel({
 
   return (
     <div className="flex-1 overflow-y-auto relative">
-      {/* Back button - sits at top-left, outside the centered content column */}
-      <button
-        onClick={onOpenInputForm}
-        className="absolute top-6 left-6 z-10 p-1 text-muted-foreground hover:text-foreground transition-colors"
-        title="Back"
-      >
-        <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
-      </button>
-
       <div className="max-w-5xl mx-auto p-8 space-y-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4 mb-2">

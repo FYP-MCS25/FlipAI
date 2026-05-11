@@ -1,5 +1,6 @@
 import { X, User, Mail, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { authAPI } from '../../apiService';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -15,9 +16,9 @@ export function UserProfileModal({ isOpen, onClose, user }: UserProfileModalProp
 
   if (!isOpen) return null;
 
-  const handleLogout = () => {
-    // In a real app, this would clear auth tokens, etc.
+  const handleLogout = async () => {
     onClose();
+    await authAPI.logout().catch(() => {});
     navigate('/login');
   };
 

@@ -1,4 +1,11 @@
 // Centralized helpers for the Phase 4 prediction + SHAP frontend flow.
+import { getAccessToken } from '../../apiService';
+
+const authHeaders = () => {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export interface PredictResponsePayload {
   prediction_id?: number;
   prediction_value?: number;
@@ -154,6 +161,7 @@ export const requestPredictionWithShap = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify({
         model_id: modelId,
@@ -221,6 +229,7 @@ export const requestCounterfactuals = async (
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders(),
         },
         body: JSON.stringify(requestBody),
       }
@@ -268,6 +277,7 @@ export const requestExplanation = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify({
         expected_outcome: expectedOutcome,
