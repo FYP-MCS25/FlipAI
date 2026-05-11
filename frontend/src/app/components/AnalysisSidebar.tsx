@@ -143,7 +143,7 @@ export function AnalysisSidebar({
         <button
           type="button"
           onClick={() => setTheme(isLight ? 'dark' : 'light')}
-          className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-sidebar-accent/60 hover:bg-sidebar-accent transition-colors text-sm text-sidebar-foreground"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors text-sm text-muted-foreground"
         >
           <span className="flex items-center gap-2">
             {isLight ? (
