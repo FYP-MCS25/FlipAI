@@ -393,8 +393,8 @@ export function CounterfactualConfigForm({
         {/* -- Section 1: Target outcome condition -- */}
         <section className="space-y-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-amber-500/15">
-              <Target className="w-4 h-4 text-amber-400" />
+            <div className="p-1.5 rounded-lg bg-amber-500/25 dark:bg-amber-500/15">
+              <Target className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <h2 className="text-base font-semibold text-foreground">Desired Outcome Condition</h2>
@@ -406,9 +406,9 @@ export function CounterfactualConfigForm({
 
           <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-4">
             {/* Feature badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Target className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-sm font-mono font-medium text-amber-300">{targetFeature}</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 dark:bg-amber-500/10 border border-amber-500/40 dark:border-amber-500/20">
+              <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm font-mono font-medium text-amber-700 dark:text-amber-300">{targetFeature}</span>
               <span className="text-xs text-muted-foreground border-l border-border pl-2 ml-0.5">{targetMeta?.type}</span>
             </div>
 
@@ -486,8 +486,8 @@ export function CounterfactualConfigForm({
         {/* -- Section 2: Instance feature values -- */}
         <section className="space-y-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-blue-500/15">
-              <FlaskConical className="w-4 h-4 text-blue-400" />
+            <div className="p-1.5 rounded-lg bg-blue-500/25 dark:bg-blue-500/15">
+              <FlaskConical className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h2 className="text-base font-semibold text-foreground">Instance Feature Values</h2>

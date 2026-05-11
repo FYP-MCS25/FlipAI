@@ -263,12 +263,12 @@ export function FeatureConfigForm({
         </div>
 
         {/* Target Feature Banner */}
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-600/10 border border-amber-500/20">
-          <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
-            <Lock className="w-5 h-5 text-amber-400" />
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-500/20 dark:bg-amber-600/10 border border-amber-500/30 dark:border-amber-500/20">
+          <div className="p-2 rounded-lg bg-amber-500/30 dark:bg-amber-600/20 flex-shrink-0">
+            <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-sm text-amber-400/80 font-medium uppercase tracking-wide">
+            <p className="text-sm text-amber-700 dark:text-amber-400/80 font-medium uppercase tracking-wide">
               Target Feature
             </p>
             <p className="text-foreground font-semibold text-lg">{targetFeature}</p>
@@ -300,8 +300,8 @@ export function FeatureConfigForm({
           )}
 
           <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border max-w-sm">
-            <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
-              <Lock className="w-5 h-5 text-blue-400" />
+            <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 flex-shrink-0">
+              <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h3 className="text-foreground font-medium mb-1">Frozen Features</h3>
@@ -325,7 +325,7 @@ export function FeatureConfigForm({
               <div className="flex-1 text-sm font-medium text-muted-foreground">Feature Name</div>
               <div className="text-sm font-medium text-muted-foreground text-center w-20">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Lock className="w-4 h-4 text-blue-400" />
+                  <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <span>Freeze</span>
                 </div>
               </div>

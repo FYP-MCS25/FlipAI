@@ -78,8 +78,8 @@ export function FeatureConfigModal({
           {/* Target Feature Selection */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-600/20">
-                <Target className="w-4 h-4 text-blue-400" />
+              <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20">
+                <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <h3 className="text-foreground font-medium">Target Feature to Flip</h3>
@@ -117,8 +117,8 @@ export function FeatureConfigModal({
           {/* Frozen Features Selection */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-amber-600/20">
-                <Lock className="w-4 h-4 text-amber-400" />
+              <div className="p-2 rounded-lg bg-amber-500/25 dark:bg-amber-600/20">
+                <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
                 <h3 className="text-foreground font-medium">Features to Freeze</h3>

@@ -80,7 +80,7 @@ function CounterfactualCard({ combination, displayId }: { combination: Counterfa
         <div className="mt-4 pt-4 border-t border-border/60">
           <button
             onClick={() => setShowExplanation(!showExplanation)}
-            className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
           >
             <Info className="w-4 h-4" />
             {showExplanation ? 'Hide Strategy Guide' : 'View Strategy Guide'}
@@ -180,8 +180,8 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
 
           <div className="bg-muted/40 rounded-lg border border-border p-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-blue-600/20">
-                <BarChart3 className="w-4 h-4 text-blue-400" />
+              <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20">
+                <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <h3 className="font-semibold text-foreground">SHAP Analysis</h3>
             </div>
@@ -210,8 +210,8 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
 
           <div className="bg-muted/40 rounded-lg border border-border p-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-green-600/20">
-                <Sparkles className="w-4 h-4 text-green-400" />
+              <div className="p-2 rounded-lg bg-green-500/25 dark:bg-green-600/20">
+                <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="font-semibold text-foreground">DiCE-ML Counterfactual Combinations</h3>
             </div>

@@ -46,8 +46,8 @@ export function AnalysisOutput({ analysis }: AnalysisOutputProps) {
         {/* SHAP Analysis */}
         <div className="bg-muted/40 rounded-xl border border-border p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-600/20">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
+            <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20">
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <h2 className="text-xl font-semibold text-foreground">SHAP Analysis</h2>
           </div>
@@ -78,8 +78,8 @@ export function AnalysisOutput({ analysis }: AnalysisOutputProps) {
         {/* DiCE-ML Analysis */}
         <div className="bg-muted/40 rounded-xl border border-border p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-green-600/20">
-              <Sparkles className="w-5 h-5 text-green-400" />
+            <div className="p-2 rounded-lg bg-green-500/25 dark:bg-green-600/20">
+              <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
             <h2 className="text-xl font-semibold text-foreground">
               DiCE-ML Counterfactual Analysis

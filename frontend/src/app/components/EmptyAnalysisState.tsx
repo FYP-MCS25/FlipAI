@@ -31,8 +31,8 @@ export function EmptyAnalysisState({ onOpenUpload }: EmptyAnalysisStateProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-12">
           <div className="p-6 rounded-xl bg-muted/40 border border-border text-left">
-            <div className="p-3 rounded-lg bg-blue-600/20 w-fit mb-4">
-              <Upload className="w-6 h-6 text-blue-400" />
+            <div className="p-3 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 w-fit mb-4">
+              <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <h3 className="text-foreground font-medium mb-2">Upload Dataset</h3>
             <p className="text-sm text-muted-foreground">
@@ -41,8 +41,8 @@ export function EmptyAnalysisState({ onOpenUpload }: EmptyAnalysisStateProps) {
           </div>
 
           <div className="p-6 rounded-xl bg-muted/40 border border-border text-left">
-            <div className="p-3 rounded-lg bg-green-600/20 w-fit mb-4">
-              <Database className="w-6 h-6 text-green-400" />
+            <div className="p-3 rounded-lg bg-green-500/25 dark:bg-green-600/20 w-fit mb-4">
+              <Database className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <h3 className="text-foreground font-medium mb-2">Use Existing Data</h3>
             <p className="text-sm text-muted-foreground">

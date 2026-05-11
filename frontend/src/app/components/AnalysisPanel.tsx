@@ -162,11 +162,11 @@ export function AnalysisPanel({
           </div>
           <p className="text-muted-foreground">Model: {modelName}</p>
           <div className="flex flex-wrap gap-2 mt-3">
-            <span className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-sm">
+            <span className="px-3 py-1 bg-amber-500/25 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg text-sm">
               Target: {targetFeature}
             </span>
             {frozenFeatures.length > 0 && (
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm">
+              <span className="px-3 py-1 bg-blue-500/25 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-lg text-sm">
                 Frozen: {frozenFeatures.join(', ')}
               </span>
             )}

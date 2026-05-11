@@ -53,8 +53,8 @@ export function UploadModal({
             className="w-full p-5 rounded-lg bg-muted/40 hover:bg-muted/60 border border-border transition-colors text-left group"
           >
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                <Upload className="w-6 h-6 text-blue-400" />
+              <div className="p-3 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex-1">
                 <h3 className="text-foreground font-medium mb-1">Upload Dataset</h3>
@@ -71,8 +71,8 @@ export function UploadModal({
             className="w-full p-5 rounded-lg bg-muted/40 hover:bg-muted/60 border border-border transition-colors text-left group"
           >
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
-                <Database className="w-6 h-6 text-green-400" />
+              <div className="p-3 rounded-lg bg-green-500/25 dark:bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                <Database className="w-6 h-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="flex-1">
                 <h3 className="text-foreground font-medium mb-1">
