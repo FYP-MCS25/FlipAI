@@ -18,7 +18,8 @@ import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
-import { fetchAnalyses, fetchDatasets, fetchDatasetById, deleteAnalysis } from '../services/dashboardService';
+import { getAccessToken, authAPI } from '../../apiService';
+import { fetchAnalyses, fetchDatasets, fetchDatasetById as fetchDatasetByIdService } from '../services/dashboardService';
 
 type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
 type TrainingBannerTone = 'info' | 'success' | 'error';
@@ -108,6 +109,14 @@ interface PendingConfig {
 }
 
 export function Dashboard() {
+  const authHeaders = (): Record<string, string> => {
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  };
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   useEffect(() => {
     const loadAnalyses = async () => {
@@ -175,8 +184,13 @@ export function Dashboard() {
     return () => window.clearTimeout(timeout);
   }, [trainingBanner]);
 
-  // TODO(auth): Replace with authenticated user profile returned by auth/session API.
-  const [user] = useState({ name: 'John Doe', email: 'john.doe@example.com' });
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  useEffect(() => {
+    authAPI.me().then((me) => {
+      const name = [me.first_name, me.last_name].filter(Boolean).join(' ') || me.username;
+      setUser({ name, email: me.email });
+    }).catch(() => {});
+  }, []);
 
   const currentAnalysis = analyses.find((a) => a.id === activeAnalysis);
 
@@ -257,9 +271,7 @@ export function Dashboard() {
 
   const fetchDatasetById = async (datasetId: string): Promise<Dataset | null> => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/`);
-      if (!response.ok) throw new Error(`Failed to fetch dataset ${datasetId}`);
-      const rawDataset = await response.json();
+      const rawDataset = await fetchDatasetByIdService(datasetId);
       const parsed = toDataset(rawDataset);
       upsertDataset(parsed);
       return parsed;
@@ -332,6 +344,9 @@ export function Dashboard() {
     try {
       const response = await fetch(`http://localhost:8000/api/v1/analyses/${analysisId}/`, {
         method: 'DELETE',
+        headers: {
+          ...authHeaders(),
+        },
       });
       if (!response.ok) throw new Error('Delete failed');
 
@@ -360,6 +375,9 @@ export function Dashboard() {
     try {
       const response = await fetch('http://localhost:8000/api/v1/datasets/', {
         method: 'POST',
+        headers: {
+          ...authHeaders(),
+        },
         body: formData,
       });
 
@@ -378,6 +396,9 @@ export function Dashboard() {
 
       await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/process/`, {
         method: 'POST',
+        headers: {
+          ...authHeaders(),
+        },
       });
 
       setDashboardLoading({
@@ -386,7 +407,11 @@ export function Dashboard() {
         detail: 'Loading processed dataset into the analysis flow...',
       });
 
-      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
+      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`, {
+        headers: {
+          ...authHeaders(),
+        },
+      });
       const fullDataset = await fullDatasetRes.json();
       const parsedDataset = toDataset(fullDataset);
 
@@ -781,11 +806,13 @@ export function Dashboard() {
         onSelectDataset={handleSelectDataset}
       />
 
-      <UserProfileModal
-        isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
-        user={user}
-      />
+      {user && (
+        <UserProfileModal
+          isOpen={profileModalOpen}
+          onClose={() => setProfileModalOpen(false)}
+          user={user}
+        />
+      )}
 
       {dashboardLoading && (
         <LoadingOverlay title={dashboardLoading.title} detail={dashboardLoading.detail} />

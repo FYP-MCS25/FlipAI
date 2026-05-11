@@ -1,6 +1,7 @@
 import { Lock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { useState, useMemo } from 'react';
+import { getAccessToken } from '../../apiService';
 
 interface FeatureConfigFormProps {
   datasetName: string;
@@ -43,6 +44,15 @@ export interface TrainingUpdate {
 }
 
 const FEATURES_PER_PAGE = 10;
+
+const authHeaders = (): Record<string, string> => {
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 export function FeatureConfigForm({
   datasetName,
@@ -150,7 +160,10 @@ export function FeatureConfigForm({
     try {
       const response = await fetch('http://localhost:8000/api/v1/models/train/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
         body: JSON.stringify(buildTrainPayload(analysisId)),
       });
       const responseData = await response.json().catch(() => ({}));
@@ -220,7 +233,10 @@ export function FeatureConfigForm({
         const analysisPayload = buildAnalysisPayload(modelId);
         const response = await fetch('http://localhost:8000/api/v1/analyses/', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+          },
           body: JSON.stringify(analysisPayload),
         });
         const responseData = await response.json().catch(() => ({}));

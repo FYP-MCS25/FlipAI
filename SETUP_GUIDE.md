@@ -342,7 +342,10 @@ DB_HOST=localhost
 DB_PORT=5432
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173
+
+# Google OAuth (required for Google-only login)
+GOOGLE_OAUTH_CLIENT_ID=your_google_oauth_web_client_id
 
 # File Upload Settings
 MAX_UPLOAD_SIZE=52428800
@@ -385,6 +388,14 @@ copy .env.example .env.local
 ```
 
 > **Important:** `.env.local` is ignored by git (in `frontend/.gitignore`). Never commit this file or any file containing secrets to version control.
+
+For frontend local API configuration, add this in `frontend/.env.local`:
+
+```env
+REACT_APP_API_URL=http://localhost:8000/api/v1
+```
+
+Authentication is Google-only. Use the `/login` page and continue with the Google button.
 
 ### 4. Create Database Migrations
 
