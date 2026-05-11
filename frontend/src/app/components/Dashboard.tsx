@@ -171,6 +171,7 @@ export function Dashboard() {
           };
         });
         setAnalyses(formattedAnalyses);
+        if (formattedAnalyses.length > 0) setActiveAnalysis(formattedAnalyses[0].id);
       } catch (err) {
         console.error('Error fetching analyses:', err);
       }
@@ -297,6 +298,22 @@ export function Dashboard() {
     useState<CounterfactualEntrySource | null>(null);
   const [trainingBanner, setTrainingBanner] = useState<TrainingBanner | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState<DashboardLoadingOverlay | null>(null);
+
+  useEffect(() => {
+    if (!trainingBanner || trainingBanner.status === 'running') return;
+
+    const timeout = window.setTimeout(() => {
+      setTrainingBanner((current) =>
+        current &&
+        current.analysisId === trainingBanner.analysisId &&
+        current.status === trainingBanner.status
+          ? null
+          : current
+      );
+    }, 6000);
+
+    return () => window.clearTimeout(timeout);
+  }, [trainingBanner]);
 
   useEffect(() => {
     if (!trainingBanner || trainingBanner.status === 'running') return;
@@ -543,6 +560,14 @@ export function Dashboard() {
           ...authHeaders(),
         },
       });
+
+      setDashboardLoading({
+        kind: 'dataset-upload',
+        title: 'Finalizing dataset',
+        detail: 'Loading processed dataset into the analysis flow...',
+      });
+
+      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`);
       const fullDataset = await fullDatasetRes.json();
       const parsedDataset = toDataset(fullDataset);
 
