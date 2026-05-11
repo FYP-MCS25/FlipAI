@@ -249,13 +249,17 @@ export function CounterfactualConfigForm({
       }
 
       let counterfactualCombinations = mapCounterfactualsToDisplayCombinations(counterfactualResult);
-      const counterfactualSummary = buildCounterfactualSummary(counterfactualResult, counterfactualError);
       
       let llmSummary: string | null = null;
       if (typeof predictionResult?.prediction_id === 'number' && !counterfactualError && counterfactualCombinations.length > 0) {
         
-        // Prepare the nested groups for the LLM to choose from
-        const groupedForLLM = prepareCounterfactualGroupsForLLM(counterfactualResult);
+        // FIX: Only send the 5 displayed combinations to the LLM to ensure 1:1 alignment.
+        // We wrap them in a single group to satisfy the backend's expected structure.
+        const top5Only = counterfactualCombinations.slice(0, 5).map((combo, idx) => ({
+            ...combo,
+            id: idx + 1 // Ensure IDs are exactly 1, 2, 3, 4, 5
+        }));
+        const groupedForLLM = [{ groupName: "Top Strategies", options: top5Only }];
         
         const explainResponse = await requestExplanation(
           predictionResult.prediction_id,
@@ -269,28 +273,20 @@ export function CounterfactualConfigForm({
            llmSummary = explainResponse.explanation.summary;
         }
 
-        if (explainResponse.explanation?.options) {
-           const options = explainResponse.explanation.options;
-           
-           // Flatten all available options that were sent to the LLM
-           const allSentOptions = groupedForLLM.flatMap((g: any) => g.options);
-           
-           // Only keep the options that the LLM explicitly selected
-           const selectedCombinations: any[] = [];
-           
-           options.forEach((o: any) => {
-               const match = allSentOptions.find((opt: any) => String(opt.id) === String(o.selected_variant_id));
-               if (match) {
-                   selectedCombinations.push({ ...match, explanation: o.explanation });
-               }
-           });
-           
-           // Replace the default static slicing with the LLM's dynamically filtered selections
-           if (selectedCombinations.length > 0) {
-              counterfactualCombinations = selectedCombinations;
-           }
-        }
+        // Merge LLM explanations back into the display combinations based on the index (rank)
+        const llmOptions = explainResponse.explanation?.options || [];
+        counterfactualCombinations = counterfactualCombinations.slice(0, 5).map((combo, idx) => {
+            const rankId = idx + 1;
+            const match = llmOptions.find((o: any) => {
+                const optId = String(o.selected_variant_id || o.id || '').replace(/\D/g, '');
+                return optId === String(rankId);
+            });
+            return match ? { ...combo, explanation: match.explanation } : combo;
+        });
       }
+
+      const counterfactualSummary = buildCounterfactualSummary(counterfactualResult, counterfactualError);
+      console.log(counterfactualSummary)
 
       // Step 3: Pass both counterfactual config and prediction payload back to parent state.
       await onSubmit({
@@ -594,4 +590,3 @@ export function CounterfactualConfigForm({
     </div>
   );
 }
-

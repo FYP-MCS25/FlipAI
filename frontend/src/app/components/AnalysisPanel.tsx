@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlaskConical, Upload, ArrowLeft } from 'lucide-react';
 import { CollapsibleAnalysis, type TestAnalysis } from './CollapsibleAnalysis';
 
-type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+type TrainingStatus = 'running' | 'completed' | 'failed';
 
 interface AnalysisPanelProps {
   datasetName: string;
@@ -52,12 +52,7 @@ export function AnalysisPanel({
     setExpandedAnalysis((prev) => (prev === testId ? null : testId));
   };
 
-  const statusMeta = {
-    idle: {
-      label: 'Idle',
-      className: 'bg-white/10 text-white/70 border border-white/20',
-      description: 'Model training has not started for this analysis yet.',
-    },
+  const statusOptions = {
     running: {
       label: 'Training',
       className: 'bg-blue-500/20 text-blue-300 border border-blue-500/40',
@@ -73,7 +68,9 @@ export function AnalysisPanel({
       className: 'bg-red-500/20 text-red-300 border border-red-500/40',
       description: trainingError || 'Training failed. Check backend logs and request payload.',
     },
-  }[trainingStatus];
+  };
+
+  const statusMeta = statusOptions[trainingStatus as keyof typeof statusOptions] || statusOptions.completed;
 
   const preferredMetricKeys = [
     'train_accuracy',
