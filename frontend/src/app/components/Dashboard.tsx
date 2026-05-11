@@ -123,7 +123,6 @@ export function Dashboard() {
           trainingError: null,
         }));
         setAnalyses(formattedAnalyses);
-        if (formattedAnalyses.length > 0) setActiveAnalysis(formattedAnalyses[0].id);
       } catch (err) {
         console.error('Error fetching analyses:', err);
       }
@@ -145,7 +144,7 @@ export function Dashboard() {
     loadDatasets();
   }, []);
 
-  const [activeAnalysis, setActiveAnalysis] = useState<string | null>('1');
+  const [activeAnalysis, setActiveAnalysis] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [existingDatasetModalOpen, setExistingDatasetModalOpen] = useState(false);
@@ -309,6 +308,17 @@ export function Dashboard() {
     setPendingConfig(null);
     setCounterfactualEntrySource(null);
     setAnalysisStep(null);
+  };
+
+  const isLandingView = activeAnalysis === null && analysisStep === null && !pendingDataset;
+
+  const handleStartNewAnalysis = () => {
+    if (!isLandingView) {
+      clearPendingFlow();
+      setActiveAnalysis(null);
+    }
+    setUploadModalOpen(false);
+    setExistingDatasetModalOpen(false);
   };
 
   // -- Handlers -------------------------------------------------------------
@@ -719,7 +729,7 @@ export function Dashboard() {
           </div>
 
           <button
-            onClick={() => setUploadModalOpen(true)}
+            onClick={handleStartNewAnalysis}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             <Plus className="w-5 h-5" />
