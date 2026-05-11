@@ -33,15 +33,15 @@ export function UploadModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 rounded-xl border border-white/10 w-full max-w-md">
+      <div className="bg-card rounded-xl border border-border w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-semibold text-white">Add Dataset</h2>
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">Add Dataset</h2>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-accent rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-white/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -50,15 +50,15 @@ export function UploadModal({
           {/* Upload Dataset */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-full p-5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left group"
+            className="w-full p-5 rounded-lg bg-muted/40 hover:bg-muted/60 border border-border transition-colors text-left group"
           >
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
-                <Upload className="w-6 h-6 text-blue-400" />
+              <div className="p-3 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 group-hover:bg-blue-600/30 transition-colors">
+                <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex-1">
-                <h3 className="text-white font-medium mb-1">Upload Dataset</h3>
-                <p className="text-sm text-white/60">
+                <h3 className="text-foreground font-medium mb-1">Upload Dataset</h3>
+                <p className="text-sm text-muted-foreground">
                   Upload a CSV file to analyze with SHAP and DiCE-ML
                 </p>
               </div>
@@ -68,17 +68,17 @@ export function UploadModal({
           {/* Choose Existing */}
           <button
             onClick={handleChooseExisting}
-            className="w-full p-5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left group"
+            className="w-full p-5 rounded-lg bg-muted/40 hover:bg-muted/60 border border-border transition-colors text-left group"
           >
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
-                <Database className="w-6 h-6 text-green-400" />
+              <div className="p-3 rounded-lg bg-green-500/25 dark:bg-green-600/20 group-hover:bg-green-600/30 transition-colors">
+                <Database className="w-6 h-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="flex-1">
-                <h3 className="text-white font-medium mb-1">
+                <h3 className="text-foreground font-medium mb-1">
                   Choose Existing Dataset
                 </h3>
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-muted-foreground">
                   Select from previously uploaded datasets
                 </p>
               </div>

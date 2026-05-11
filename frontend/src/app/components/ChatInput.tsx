@@ -24,16 +24,16 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
   };
 
   return (
-    <div className="border-t border-white/10 bg-black">
+    <div className="border-t border-border bg-background">
       <div className="max-w-3xl mx-auto p-4">
-        <div className="relative flex items-end gap-3 bg-white/5 rounded-xl border border-white/10 p-4">
+        <div className="relative flex items-end gap-3 bg-muted/40 rounded-xl border border-border p-4">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Message ChatGPT..."
             disabled={disabled}
-            className="flex-1 bg-transparent text-white placeholder:text-white/40 outline-none resize-none max-h-48 min-h-6"
+            className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none resize-none max-h-48 min-h-6"
             rows={1}
             style={{
               height: 'auto',
@@ -50,14 +50,14 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
             disabled={!input.trim() || disabled}
             className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
               input.trim() && !disabled
-                ? 'bg-white text-black hover:bg-white/90'
-                : 'bg-white/10 text-white/40 cursor-not-allowed'
+                ? 'bg-foreground text-background hover:bg-foreground/90'
+                : 'bg-muted/60 text-muted-foreground cursor-not-allowed'
             }`}
           >
             <Send className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-xs text-white/40 text-center mt-3">
+        <p className="text-xs text-muted-foreground text-center mt-3">
           ChatGPT can make mistakes. Check important info.
         </p>
       </div>

@@ -275,20 +275,20 @@ export function FeatureConfigForm({
       <div className="max-w-4xl mx-auto p-8 space-y-8">
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-white">{datasetName}</h1>
+          <h1 className="text-3xl font-semibold text-foreground">{datasetName}</h1>
         </div>
 
         {/* Target Feature Banner */}
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-600/10 border border-amber-500/20">
-          <div className="p-2 rounded-lg bg-amber-600/20 flex-shrink-0">
-            <Lock className="w-5 h-5 text-amber-400" />
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-500/20 dark:bg-amber-600/10 border border-amber-500/30 dark:border-amber-500/20">
+          <div className="p-2 rounded-lg bg-amber-500/30 dark:bg-amber-600/20 flex-shrink-0">
+            <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-sm text-amber-400/80 font-medium uppercase tracking-wide">
+            <p className="text-sm text-amber-700 dark:text-amber-400/80 font-medium uppercase tracking-wide">
               Target Feature
             </p>
-            <p className="text-white font-semibold text-lg">{targetFeature}</p>
-            <p className="text-sm text-white/50 mt-0.5">
+            <p className="text-foreground font-semibold text-lg">{targetFeature}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
               Automatically detected from the dataset
             </p>
           </div>
@@ -298,30 +298,30 @@ export function FeatureConfigForm({
         <div className="space-y-3">
           <div className="relative">
             <div className="absolute left-3 top-1/2 -translate-y-1/2">
-              <Search className="w-5 h-5 text-white/40" />
+              <Search className="w-5 h-5 text-muted-foreground" />
             </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search features..."
-              className="w-full pl-11 pr-4 py-3 bg-black/20 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full pl-11 pr-4 py-3 bg-input-background dark:bg-input/30 border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
 
           {searchQuery && (
-            <p className="text-sm text-white/60">
+            <p className="text-sm text-muted-foreground">
               Found {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''}
             </p>
           )}
 
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-black/20 border border-white/10 max-w-sm">
-            <div className="p-2 rounded-lg bg-blue-600/20 flex-shrink-0">
-              <Lock className="w-5 h-5 text-blue-400" />
+          <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border max-w-sm">
+            <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 flex-shrink-0">
+              <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h3 className="text-white font-medium mb-1">Frozen Features</h3>
-              <p className="text-sm text-white/60">
+              <h3 className="text-foreground font-medium mb-1">Frozen Features</h3>
+              <p className="text-sm text-muted-foreground">
                 Select features that should remain constant (optional)
               </p>
             </div>
@@ -330,25 +330,25 @@ export function FeatureConfigForm({
 
         {/* Feature List */}
         {filteredFeatures.length === 0 ? (
-          <div className="bg-white/5 rounded-xl border border-white/10 text-center py-12 px-6">
-            <Search className="w-12 h-12 text-white/20 mx-auto mb-3" />
-            <p className="text-white/40">No features found matching "{searchQuery}"</p>
+          <div className="bg-muted/40 rounded-xl border border-border text-center py-12 px-6">
+            <Search className="w-12 h-12 text-muted-foreground/60 mx-auto mb-3" />
+            <p className="text-muted-foreground">No features found matching "{searchQuery}"</p>
           </div>
         ) : (
-          <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+          <div className="bg-muted/40 border border-border rounded-xl overflow-hidden">
             {/* Header Row */}
-            <div className="flex items-center gap-4 p-4 bg-white/5 border-b border-white/10">
-              <div className="flex-1 text-sm font-medium text-white/60">Feature Name</div>
-              <div className="text-sm font-medium text-white/60 text-center w-20">
+            <div className="flex items-center gap-4 p-4 bg-muted/40 border-b border-border">
+              <div className="flex-1 text-sm font-medium text-muted-foreground">Feature Name</div>
+              <div className="text-sm font-medium text-muted-foreground text-center w-20">
                 <div className="flex items-center justify-center gap-1.5">
-                  <Lock className="w-4 h-4 text-blue-400" />
+                  <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <span>Freeze</span>
                 </div>
               </div>
             </div>
 
             {/* Feature Rows */}
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-border/60">
               {currentFeatures.map((feature, index) => {
                 const globalIndex = startIndex + index + 1;
                 const isFrozen = frozenFeatures.includes(feature);
@@ -356,20 +356,20 @@ export function FeatureConfigForm({
                 return (
                   <div
                     key={feature}
-                    className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex-1 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-sm text-white/60 flex-shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center text-sm text-muted-foreground flex-shrink-0">
                         {globalIndex}
                       </div>
-                      <span className="text-white">{feature}</span>
+                      <span className="text-foreground">{feature}</span>
                     </div>
                     <div className="flex items-center justify-center w-20">
                       <input
                         type="checkbox"
                         checked={isFrozen}
                         onChange={() => handleToggleFrozen(feature)}
-                        className="w-5 h-5 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                        className="w-5 h-5 rounded border-input bg-input-background dark:bg-input/30 text-blue-600 accent-blue-600 checked:bg-blue-600 checked:border-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
                       />
                     </div>
                   </div>
@@ -385,29 +385,29 @@ export function FeatureConfigForm({
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg bg-muted/40 hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-white" />
+              <ChevronLeft className="w-5 h-5 text-foreground" />
             </button>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-lg">
-              <span className="text-white font-medium">{currentPage}</span>
-              <span className="text-white/40">/</span>
-              <span className="text-white/60">{totalPages}</span>
+            <div className="flex items-center gap-2 px-4 py-2 bg-muted/40 rounded-lg">
+              <span className="text-foreground font-medium">{currentPage}</span>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-muted-foreground">{totalPages}</span>
             </div>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg bg-muted/40 hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight className="w-5 h-5 text-white" />
+              <ChevronRight className="w-5 h-5 text-foreground" />
             </button>
           </div>
         )}
 
         {/* Action Section */}
-        <div className="p-4 border border-white/10 rounded-xl bg-white/5">
+        <div className="p-4 border border-border rounded-xl bg-muted/40">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col gap-3 text-sm text-white/60 sm:flex-row sm:items-center sm:gap-6">
+            <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
               {frozenFeatures.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-blue-400" />
