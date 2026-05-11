@@ -11,8 +11,10 @@ import numpy as np
 import pandas as pd
 import shap
 from django.conf import settings
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from datasets.models import DatasetColumn
@@ -344,6 +346,12 @@ class PredictionViewSet(viewsets.ModelViewSet):
     """
     queryset = Prediction.objects.all()
     serializer_class = PredictionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Prediction.objects.filter(
+            Q(created_by=self.request.user) | Q(model__created_by=self.request.user)
+        ).distinct().order_by('-created_at')
     
     @action(detail=False, methods=['post'])
     def predict(self, request):
@@ -361,7 +369,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
         
         try:
             # Fetch and validate model
-            ml_model = MLModel.objects.get(id=data['model_id'])
+            ml_model = MLModel.objects.get(id=data['model_id'], created_by=request.user)
             if not ml_model.is_trained or not ml_model.model_file:
                 return Response(
                     {'error': 'Model is not trained yet'},
@@ -389,7 +397,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 prediction_value=float(prediction_val),
                 prediction_class=str(prediction_val),
                 prediction_probabilities=prediction_probs,
-                created_by=request.user if request.user.is_authenticated else None
+                created_by=request.user
             )
             
             # Generate SHAP explanation if requested
@@ -502,6 +510,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
                 features_to_vary = [f for f in ml_model.feature_names if f not in frozen]
             
             desired_class = _parse_desired_class(data.get('desired_class', "opposite"))
+            label_mapping = None
 
             # Map string desired_class to int using label_mapping (e.g. 'Yes' -> 1, 'No' -> 0)
             if label_mapping and isinstance(desired_class, str) and desired_class in label_mapping:
@@ -826,9 +835,10 @@ class CounterfactualViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = Counterfactual.objects.all()
     serializer_class = CounterfactualSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(prediction__created_by=self.request.user)
         prediction_id = self.request.query_params.get('prediction_id', None)
         if prediction_id:
             queryset = queryset.filter(prediction_id=prediction_id)
@@ -844,4 +854,10 @@ class CounterfactualSearchViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = CounterfactualSearch.objects.all()
     serializer_class = CounterfactualSearchSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CounterfactualSearch.objects.filter(
+            prediction__created_by=self.request.user
+        ).order_by('-created_at')
 

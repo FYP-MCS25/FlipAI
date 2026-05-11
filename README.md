@@ -40,6 +40,22 @@ npm start
 - **API Docs (ReDoc)**: http://localhost:8000/redoc/
 - **API Root**: http://localhost:8000/api/v1/
 
+### Authentication (Google Only)
+Backend authentication is configured for **Google sign-in + JWT** only for API access.
+
+Required environment variables:
+- `GOOGLE_OAUTH_CLIENT_ID=<your-google-oauth-web-client-id>`
+
+Auth endpoints:
+- `GET /api/v1/auth/google-challenge/` to obtain `{ state, nonce, client_id }`
+- `POST /api/v1/auth/google-sign-in/` with `{ "id_token": "<google_id_token>", "state": "<state_from_challenge>" }`
+- `POST /api/v1/auth/token/refresh/`
+- `POST /api/v1/auth/token/verify/`
+- `GET /api/v1/auth/me/`
+- `POST /api/v1/auth/logout/`
+
+All API routes under `/api/v1/` require `Authorization: Bearer <access_token>` unless explicitly marked public.
+
 ---
 
 ## 🎯 What is FlipAI?

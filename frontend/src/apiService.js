@@ -2,25 +2,52 @@
 import config from './config';
 
 const apiUrl = config.apiUrl;
+const ACCESS_TOKEN_KEY = 'flipai_access_token';
+const REFRESH_TOKEN_KEY = 'flipai_refresh_token';
+
+export function setAuthTokens({ access, refresh }) {
+  if (access) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, access);
+  }
+  if (refresh) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+  }
+}
+
+export function clearAuthTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function getAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
 
 /**
  * Generic fetch wrapper with error handling
  */
 async function fetchAPI(endpoint, options = {}) {
   const url = `${apiUrl}${endpoint}`;
+  const accessToken = getAccessToken();
+  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   
   try {
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
         ...options.headers,
       },
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
     }
 
     return await response.json();
@@ -35,17 +62,22 @@ async function fetchAPI(endpoint, options = {}) {
  */
 async function uploadFile(endpoint, formData) {
   const url = `${apiUrl}${endpoint}`;
+  const accessToken = getAccessToken();
+  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   
   try {
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
+      headers: {
+        ...authHeader,
+      },
       // Don't set Content-Type header - browser will set it with boundary
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
     }
 
     return await response.json();
@@ -151,6 +183,56 @@ export const predictionAPI = {
   getCounterfactuals: (id) => fetchAPI(`/predictions/${id}/counterfactuals/`),
 };
 
+// ============ Authentication APIs ============
+
+export const authAPI = {
+  googleChallenge: () => fetchAPI('/auth/google-challenge/'),
+
+  googleSignIn: async (idToken, state) => {
+    const authPayload = await fetchAPI('/auth/google-sign-in/', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken, state }),
+    });
+
+    if (authPayload.access && authPayload.refresh) {
+      setAuthTokens({ access: authPayload.access, refresh: authPayload.refresh });
+    }
+
+    return authPayload;
+  },
+
+  refreshToken: async () => {
+    const refresh = getRefreshToken();
+    if (!refresh) {
+      throw new Error('No refresh token available');
+    }
+
+    const payload = await fetchAPI('/auth/token/refresh/', {
+      method: 'POST',
+      body: JSON.stringify({ refresh }),
+    });
+
+    if (payload.access) {
+      setAuthTokens({ access: payload.access, refresh: payload.refresh || refresh });
+    }
+
+    return payload;
+  },
+
+  me: () => fetchAPI('/auth/me/'),
+
+  logout: async () => {
+    const refresh = getRefreshToken();
+    if (refresh) {
+      await fetchAPI('/auth/logout/', {
+        method: 'POST',
+        body: JSON.stringify({ refresh }),
+      });
+    }
+    clearAuthTokens();
+  },
+};
+
 // ============ Example Usage ============
 
 /*
@@ -195,4 +277,5 @@ export default {
   datasetAPI,
   modelAPI,
   predictionAPI,
+  authAPI,
 };

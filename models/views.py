@@ -1,11 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import MLModel, TrainingJob
 from .serializers import MLModelSerializer, TrainingJobSerializer, ModelTrainSerializer
 import os
 import uuid
-import pandas as pd
 from django.conf import settings
 from datasets.models import Dataset
 from datasets.models import DatasetColumn
@@ -19,6 +19,13 @@ class MLModelViewSet(viewsets.ModelViewSet):
     """
     queryset = MLModel.objects.all()
     serializer_class = MLModelSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return MLModel.objects.filter(created_by=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
     
     @action(detail=False, methods=['post'])
     def train(self, request):
@@ -32,7 +39,7 @@ class MLModelViewSet(viewsets.ModelViewSet):
         
         # Start training process
         try:
-            dataset = Dataset.objects.get(id=data['dataset_id'])
+            dataset = Dataset.objects.get(id=data['dataset_id'], uploaded_by=request.user)
             df = load_clean_dataset(dataset.file.path)
                 
             # Create MLModel entry
@@ -139,6 +146,10 @@ class TrainingJobViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = TrainingJob.objects.all()
     serializer_class = TrainingJobSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return TrainingJob.objects.filter(model__created_by=self.request.user).order_by('-created_at')
     
     @action(detail=True, methods=['get'])
     def status(self, request, pk=None):

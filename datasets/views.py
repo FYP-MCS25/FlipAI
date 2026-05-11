@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Dataset, DatasetColumn
@@ -14,6 +15,10 @@ class DatasetViewSet(viewsets.ModelViewSet):
     """
     queryset = Dataset.objects.all()
     serializer_class = DatasetSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Dataset.objects.filter(uploaded_by=self.request.user).order_by('-uploaded_at')
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -21,8 +26,7 @@ class DatasetViewSet(viewsets.ModelViewSet):
         return DatasetSerializer
     
     def perform_create(self, serializer):
-        # TODO: Add user authentication
-        serializer.save()
+        serializer.save(uploaded_by=self.request.user)
     
     @action(detail=True, methods=['get'])
     def statistics(self, request, pk=None):
