@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Target, Lock, FlaskConical } from 'lucide-react';
+import { ArrowRight, Target, Lock, FlaskConical } from 'lucide-react';
 import {
   buildCounterfactualSummary,
   type CounterfactualDisplayCombination,
@@ -367,14 +367,14 @@ export function CounterfactualConfigForm({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto relative">
-      {/* Back button - absolute positioned outside the content column */}
+      {/* Forward button - absolute positioned outside the content column */}
       <button
         type="button"
         onClick={onBack}
-        className="absolute top-6 left-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
-        title="Back"
+        className="absolute top-6 right-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
+        title="View analysis"
       >
-        <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
+        <ArrowRight className="w-5 h-5" strokeWidth={2.5} />
       </button>
 
       <div className="max-w-3xl mx-auto p-8 space-y-10">

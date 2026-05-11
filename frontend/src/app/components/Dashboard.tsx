@@ -636,11 +636,6 @@ export function Dashboard() {
   };
 
   const handleCounterfactualBack = () => {
-    if (counterfactualEntrySource === 'new-analysis') {
-      setAnalysisStep('feature-config');
-      return;
-    }
-
     clearPendingFlow();
   };
 
