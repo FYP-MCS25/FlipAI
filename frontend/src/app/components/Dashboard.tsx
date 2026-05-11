@@ -674,6 +674,7 @@ export function Dashboard() {
           frozenFeatures={pendingConfig.frozenFeatures}
           modelId={currentAnalysis?.trainingModelId ?? null}
           featureMetas={featureMetas}
+          canReturnToAnalysis={Boolean(currentAnalysis && currentAnalysis.testAnalyses.length > 0)}
           onBack={handleCounterfactualBack}
           onPredictionRequestStateChange={handlePredictionRequestStateChange}
           onSubmit={handleCounterfactualConfigSubmit}

@@ -64,6 +64,7 @@ interface CounterfactualConfigFormProps {
   modelId: number | null;
   featureMetas: FeatureMeta[];   // all columns with type metadata
   onBack: () => void;
+  canReturnToAnalysis: boolean;
   onPredictionRequestStateChange?: (isRunning: boolean) => void;
   onSubmit: (
     config: CounterfactualConfig,
@@ -107,6 +108,7 @@ export function CounterfactualConfigForm({
   modelId,
   featureMetas,
   onBack,
+  canReturnToAnalysis,
   onPredictionRequestStateChange,
   onSubmit,
 }: CounterfactualConfigFormProps) {
@@ -371,8 +373,15 @@ export function CounterfactualConfigForm({
       <button
         type="button"
         onClick={onBack}
-        className="absolute top-6 right-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
-        title="View analysis"
+        disabled={!canReturnToAnalysis}
+        className={`absolute top-6 right-6 z-10 p-1 text-white/70 transition-colors ${
+          canReturnToAnalysis ? 'hover:text-white' : 'opacity-40 cursor-not-allowed'
+        }`}
+        title={
+          canReturnToAnalysis
+            ? 'View analysis'
+            : 'Run your first entry to view analysis'
+        }
       >
         <ArrowRight className="w-5 h-5" strokeWidth={2.5} />
       </button>
