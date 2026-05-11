@@ -31,7 +31,7 @@ export function EmptyChatState({ onSelectPrompt }: EmptyChatStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="max-w-3xl w-full">
-        <h1 className="text-4xl font-semibold text-white text-center mb-12">
+        <h1 className="text-4xl font-semibold text-foreground text-center mb-12">
           What can I help with?
         </h1>
 
@@ -42,17 +42,17 @@ export function EmptyChatState({ onSelectPrompt }: EmptyChatStateProps) {
               <button
                 key={index}
                 onClick={() => onSelectPrompt(suggestion.prompt)}
-                className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left group"
+                className="p-4 rounded-xl bg-muted/40 hover:bg-muted/60 border border-border transition-colors text-left group"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
-                    <Icon className="w-5 h-5 text-white/70" />
+                  <div className="p-2 rounded-lg bg-muted/40 group-hover:bg-muted/60 transition-colors">
+                    <Icon className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="text-white font-medium mb-1">
+                    <h3 className="text-foreground font-medium mb-1">
                       {suggestion.title}
                     </h3>
-                    <p className="text-sm text-white/60">
+                    <p className="text-sm text-muted-foreground">
                       {suggestion.prompt}
                     </p>
                   </div>

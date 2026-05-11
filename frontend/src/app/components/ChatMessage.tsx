@@ -17,7 +17,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div
       className={`py-8 px-4 ${
-        isUser ? 'bg-transparent' : 'bg-white/5'
+        isUser ? 'bg-transparent' : 'bg-muted/40'
       }`}
     >
       <div className="max-w-3xl mx-auto flex gap-6">
@@ -36,8 +36,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
         {/* Message Content */}
         <div className="flex-1 pt-1">
-          <div className="prose prose-invert max-w-none">
-            <p className="text-white/90 whitespace-pre-wrap leading-7">
+          <div className="prose dark:prose-invert max-w-none">
+            <p className="text-foreground whitespace-pre-wrap leading-7">
               {message.content}
             </p>
           </div>

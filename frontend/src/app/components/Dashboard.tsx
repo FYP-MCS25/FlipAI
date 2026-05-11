@@ -677,7 +677,7 @@ export function Dashboard() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="h-dvh w-full flex bg-black text-white overflow-hidden relative">
+    <div className="h-dvh w-full flex bg-background text-foreground overflow-hidden relative">
       {sidebarOpen && (
         <AnalysisSidebar
           analyses={analyses}
@@ -691,25 +691,25 @@ export function Dashboard() {
 
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-white/10 flex-shrink-0">
+        <div className="h-16 px-4 flex items-center justify-between border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
             {!sidebarOpen && (
               <>
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 hover:bg-accent rounded-lg transition-colors"
                 >
-                  <PanelLeft className="w-5 h-5 text-white/70" />
+                  <PanelLeft className="w-5 h-5 text-muted-foreground" />
                 </button>
                 <button
                   onClick={() => setProfileModalOpen(true)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 hover:bg-accent rounded-lg transition-colors"
                 >
-                  <User className="w-5 h-5 text-white/70" />
+                  <User className="w-5 h-5 text-muted-foreground" />
                 </button>
               </>
             )}
-            <h2 className="text-lg font-medium text-white/90">
+            <h2 className="text-lg font-medium text-foreground">
               {analysisStep === 'feature-config' && pendingDataset
                 ? pendingDataset.name
                 : analysisStep === 'counterfactual-config' && pendingDataset
@@ -720,7 +720,7 @@ export function Dashboard() {
 
           <button
             onClick={() => setUploadModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             <Plus className="w-5 h-5" />
             <span>New Analysis</span>
@@ -731,10 +731,10 @@ export function Dashboard() {
           <div
             className={`mx-3 mt-3 rounded-lg border px-4 py-3 flex items-start justify-between gap-3 ${
               trainingBanner.tone === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200'
+                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-200'
                 : trainingBanner.tone === 'error'
-                ? 'bg-red-500/10 border-red-500/40 text-red-200'
-                : 'bg-blue-500/10 border-blue-500/40 text-blue-200'
+                ? 'bg-red-500/10 border-red-500/40 text-red-700 dark:text-red-200'
+                : 'bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-200'
             }`}
           >
             <div className="min-w-0">

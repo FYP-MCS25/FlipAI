@@ -18,7 +18,7 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo & Header */}
         <div className="text-center mb-8">
@@ -26,7 +26,7 @@ export function Login() {
             <FileBarChart className="w-10 h-10 text-blue-400" />
           </div>
           <h1 className="text-3xl font-semibold mb-2">Welcome Back</h1>
-          <p className="text-white/60">
+          <p className="text-muted-foreground">
             Sign in to access your counterfactual analyses
           </p>
         </div>
@@ -35,12 +35,12 @@ export function Login() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Field */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-white/70 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-2">
               Email Address
             </label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <Mail className="w-5 h-5 text-white/40" />
+                <Mail className="w-5 h-5 text-muted-foreground" />
               </div>
               <input
                 type="email"
@@ -49,19 +49,19 @@ export function Login() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="you@example.com"
                 required
-                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-input-background dark:bg-input/30 border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
               />
             </div>
           </div>
 
           {/* Password Field */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-white/70 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-2">
               Password
             </label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <Lock className="w-5 h-5 text-white/40" />
+                <Lock className="w-5 h-5 text-muted-foreground" />
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -70,12 +70,12 @@ export function Login() {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 placeholder="Enter your password"
                 required
-                className="w-full pl-11 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                className="w-full pl-11 pr-12 py-3 bg-input-background dark:bg-input/30 border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -91,9 +91,9 @@ export function Login() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="w-4 h-4 rounded border-white/10 bg-white/5 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                className="w-4 h-4 rounded border-input bg-input-background dark:bg-input/30 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
               />
-              <span className="text-white/70">Remember me</span>
+              <span className="text-muted-foreground">Remember me</span>
             </label>
             <Link
               to="/forgot-password"
@@ -115,7 +115,7 @@ export function Login() {
         {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-white/10"></div>
+            <div className="w-full border-t border-border"></div>
           </div>
           <div className="relative flex justify-center text-sm">
             
@@ -129,7 +129,7 @@ export function Login() {
         </div>
 
         {/* Sign Up Link */}
-        <p className="text-center text-sm text-white/60 mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Don't have an account?{' '}
           <Link to="/signup" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
             Sign up

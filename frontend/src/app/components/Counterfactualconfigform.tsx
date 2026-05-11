@@ -78,17 +78,17 @@ type NumericOp = typeof NUMERIC_OPS[number];
 
 function OpSelector({ value, onChange }: { value: NumericOp; onChange: (op: NumericOp) => void }) {
   return (
-    <div className="flex rounded-lg overflow-hidden border border-white/10 shrink-0">
+    <div className="flex rounded-lg overflow-hidden border border-border shrink-0">
       {NUMERIC_OPS.map((op) => (
         <button
           key={op}
           type="button"
           onClick={() => onChange(op)}
           className={`
-            px-3 py-2.5 text-sm font-mono font-bold min-w-[38px] transition-all duration-150 border-r border-white/10 last:border-r-0
+            px-3 py-2.5 text-sm font-mono font-bold min-w-[38px] transition-all duration-150 border-r border-border last:border-r-0
             ${value === op
               ? 'bg-blue-600 text-white'
-              : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'}
+              : 'bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'}
           `}
         >
           {op}
@@ -331,21 +331,21 @@ export function CounterfactualConfigForm({
 
   const renderInstanceInput = (meta: FeatureMeta) => {
     const baseClass =
-      'w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white ' +
-      'placeholder:text-white/25 focus:outline-none focus:border-blue-500/60 transition-all';
+      'w-full bg-input-background dark:bg-input/30 border border-input rounded-lg px-3 py-2.5 text-sm text-foreground ' +
+      'placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/60 transition-all';
 
     if (meta.type === 'categorical' && meta.possibleValues?.length) {
       return (
         <select
           value={instanceValues[meta.name]}
           onChange={(e) => setField(meta.name, e.target.value)}
-          className={`${baseClass} appearance-none cursor-pointer bg-[#0d0d0d]`}
+          className={`${baseClass} appearance-none cursor-pointer`}
         >
-          <option value="" disabled className="text-white/25">
+          <option value="" disabled className="text-muted-foreground">
             Select a value...
           </option>
           {meta.possibleValues.map((val) => (
-            <option key={val} value={val} className="text-white bg-[#0d0d0d]">
+            <option key={val} value={val} className="text-foreground bg-background">
               {val}
             </option>
           ))}
@@ -371,7 +371,7 @@ export function CounterfactualConfigForm({
       <button
         type="button"
         onClick={onBack}
-        className="absolute top-6 left-6 z-10 p-1 text-white/70 hover:text-white transition-colors"
+        className="absolute top-6 left-6 z-10 p-1 text-muted-foreground hover:text-foreground transition-colors"
         title="Back"
       >
         <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
@@ -382,9 +382,9 @@ export function CounterfactualConfigForm({
         {/* -- Page header -- */}
         <div className="flex items-start gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-white/30 mb-1">{datasetName}</p>
-            <h1 className="text-2xl font-semibold text-white">Configure Counterfactual Query</h1>
-            <p className="text-sm text-white/50 mt-1">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-1">{datasetName}</p>
+            <h1 className="text-2xl font-semibold text-foreground">Configure Counterfactual Query</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               Define the outcome you want to flip, then provide the instance values to explain.
             </p>
           </div>
@@ -397,40 +397,40 @@ export function CounterfactualConfigForm({
               <Target className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Desired Outcome Condition</h2>
-              <p className="text-xs text-white/45">
-                Specify what value <span className="text-white/70 font-mono">{targetFeature}</span> should flip to.
+              <h2 className="text-base font-semibold text-foreground">Desired Outcome Condition</h2>
+              <p className="text-xs text-muted-foreground">
+                Specify what value <span className="text-foreground font-mono">{targetFeature}</span> should flip to.
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+          <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-4">
             {/* Feature badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
               <Target className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-sm font-mono font-medium text-amber-300">{targetFeature}</span>
-              <span className="text-xs text-white/30 border-l border-white/15 pl-2 ml-0.5">{targetMeta?.type}</span>
+              <span className="text-xs text-muted-foreground border-l border-border pl-2 ml-0.5">{targetMeta?.type}</span>
             </div>
 
             {targetMeta?.type === 'categorical' && targetMeta.possibleValues?.length ? (
               <div className="flex items-center gap-3">
-                <div className="shrink-0 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-mono font-bold text-white/35">
+                <div className="shrink-0 px-3 py-2.5 rounded-lg bg-muted/40 border border-border text-sm font-mono font-bold text-muted-foreground">
                   =
                 </div>
                 <select
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
                   className="
-                    flex-1 bg-[#0d0d0d] border border-white/10 rounded-lg px-4 py-2.5
-                    text-white font-mono text-sm appearance-none cursor-pointer
+                    flex-1 bg-input-background dark:bg-input/30 border border-input rounded-lg px-4 py-2.5
+                    text-foreground font-mono text-sm appearance-none cursor-pointer
                     focus:outline-none focus:border-blue-500/60 transition-all
                   "
                 >
-                  <option value="" disabled className="text-white/25">
+                  <option value="" disabled className="text-muted-foreground">
                     Select target value...
                   </option>
                   {targetMeta.possibleValues.map((val) => (
-                    <option key={val} value={val} className="text-white bg-[#0d0d0d]">
+                    <option key={val} value={val} className="text-foreground bg-background">
                       {val}
                     </option>
                   ))}
@@ -446,15 +446,15 @@ export function CounterfactualConfigForm({
                   onChange={(e) => setTargetValue(e.target.value)}
                   placeholder="Enter target value..."
                   className="
-                    flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5
-                    text-white placeholder:text-white/25 font-mono text-sm
+                    flex-1 bg-input-background dark:bg-input/30 border border-input rounded-lg px-4 py-2.5
+                    text-foreground placeholder:text-muted-foreground font-mono text-sm
                     focus:outline-none focus:border-blue-500/60 transition-all
                   "
                 />
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <div className="shrink-0 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-sm font-mono font-bold text-white/35">
+                <div className="shrink-0 px-3 py-2.5 rounded-lg bg-muted/40 border border-border text-sm font-mono font-bold text-muted-foreground">
                   =
                 </div>
                 <input
@@ -463,8 +463,8 @@ export function CounterfactualConfigForm({
                   onChange={(e) => setTargetValue(e.target.value)}
                   placeholder="Enter target value..."
                   className="
-                    flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5
-                    text-white placeholder:text-white/25 font-mono text-sm
+                    flex-1 bg-input-background dark:bg-input/30 border border-input rounded-lg px-4 py-2.5
+                    text-foreground placeholder:text-muted-foreground font-mono text-sm
                     focus:outline-none focus:border-blue-500/60 transition-all
                   "
                 />
@@ -474,8 +474,8 @@ export function CounterfactualConfigForm({
             {/* Live preview */}
             {targetValue && (
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-xs text-white/35">Condition preview:</span>
-                <code className="text-xs bg-white/8 border border-white/10 rounded px-2 py-1 text-emerald-300 font-mono">
+                <span className="text-xs text-muted-foreground">Condition preview:</span>
+                <code className="text-xs bg-muted/50 border border-border rounded px-2 py-1 text-emerald-600 dark:text-emerald-300 font-mono">
                   {targetFeature} {isNumericTarget ? op : '='} {targetValue}
                 </code>
               </div>
@@ -490,8 +490,8 @@ export function CounterfactualConfigForm({
               <FlaskConical className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">Instance Feature Values</h2>
-              <p className="text-xs text-white/45">
+              <h2 className="text-base font-semibold text-foreground">Instance Feature Values</h2>
+              <p className="text-xs text-muted-foreground">
                 Enter the current values of each feature for the instance you want to explain.
               </p>
             </div>
@@ -499,7 +499,7 @@ export function CounterfactualConfigForm({
 
           {/* CSV upload UI */}
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 text-sm text-white/70">
+            <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border cursor-pointer hover:bg-muted/60 text-sm text-muted-foreground">
               Upload CSV
               <input
                 type="file"
@@ -511,26 +511,26 @@ export function CounterfactualConfigForm({
             </label>
 
             {uploadStatus && (
-              <span className="text-xs text-white/40">{uploadStatus}</span>
+              <span className="text-xs text-muted-foreground">{uploadStatus}</span>
             )}
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden">
+          <div className="rounded-xl border border-border bg-muted/30 overflow-hidden">
             {/* Column headers */}
-            <div className="grid grid-cols-[1fr_1.6fr] gap-4 px-5 py-3 border-b border-white/10 bg-white/[0.03]">
-              <span className="text-xs font-medium uppercase tracking-widest text-white/35">Feature</span>
-              <span className="text-xs font-medium uppercase tracking-widest text-white/35">Value</span>
+            <div className="grid grid-cols-[1fr_1.6fr] gap-4 px-5 py-3 border-b border-border bg-muted/30">
+              <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Feature</span>
+              <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Value</span>
             </div>
 
             {/* Feature rows */}
-            <div className="divide-y divide-white/[0.06]">
+            <div className="divide-y divide-border/60">
               {instanceFeatures.map((meta) => {
                 const frozen = isFrozen(meta.name);
                 return (
                   <div
                     key={meta.name}
                     className={`grid grid-cols-[1fr_1.6fr] gap-4 px-5 py-3.5 items-center transition-colors ${
-                      frozen ? 'bg-blue-900/10' : 'hover:bg-white/[0.02]'
+                      frozen ? 'bg-blue-50/60 dark:bg-blue-900/10' : 'hover:bg-muted/30'
                     }`}
                   >
                     {/* Feature label */}
@@ -540,13 +540,13 @@ export function CounterfactualConfigForm({
                         <Lock className="w-3.5 h-3.5 text-blue-400/70 shrink-0" />
                         </span>
                       )}
-                      <span className="text-sm font-mono truncate text-white/80">
+                      <span className="text-sm font-mono truncate text-foreground">
                         {meta.name}
                       </span>
                       <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded border font-mono ${
                         frozen
                           ? 'text-blue-400/60 border-blue-400/20 bg-blue-400/5'
-                          : 'text-white/25 border-white/10 bg-white/5'
+                          : 'text-muted-foreground border-border bg-muted/50'
                       }`}>
                         {meta.type}
                       </span>
@@ -562,17 +562,17 @@ export function CounterfactualConfigForm({
         </section>
 
         {/* -- Submit bar -- */}
-        <div className="sticky bottom-0 -mx-8 px-8 pb-8 pt-4 bg-gradient-to-t from-black via-black/90 to-transparent">
-          <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur">
-            <div className="text-sm text-white/40 space-y-0.5">
+        <div className="sticky bottom-0 -mx-8 px-8 pb-8 pt-4 bg-gradient-to-t from-background via-background/90 to-transparent">
+          <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/40 backdrop-blur">
+            <div className="text-sm text-muted-foreground space-y-0.5">
               {!conditionValid && (
-                <p className="text-amber-400/70"> Set a target outcome condition above.</p>
+                <p className="text-amber-600 dark:text-amber-400/70"> Set a target outcome condition above.</p>
               )}
               {conditionValid && !allFilled && (
-                <p className="text-amber-400/70"> Fill in all instance feature values.</p>
+                <p className="text-amber-600 dark:text-amber-400/70"> Fill in all instance feature values.</p>
               )}
               {canSubmit && (
-                <p className="text-emerald-400/80"> Ready to generate counterfactuals.</p>
+                <p className="text-emerald-600 dark:text-emerald-400/80"> Ready to generate counterfactuals.</p>
               )}
             </div>
             <button
