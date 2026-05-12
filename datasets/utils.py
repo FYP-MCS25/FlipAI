@@ -193,7 +193,7 @@ def generate_feature_descriptions(
         info = f"- **{col}** (type: {col_type})"
         
         # Add sample values or statistics
-        if col_type == 'numeric':
+        if col_type == 'continuous':
             min_val = df[col].min()
             max_val = df[col].max()
             mean_val = df[col].mean()

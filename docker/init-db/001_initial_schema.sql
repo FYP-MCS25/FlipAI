@@ -165,7 +165,7 @@ CREATE TABLE datasets_datasetcolumn (
     CONSTRAINT dc_data_type_valid
         CHECK (
             data_type IN (
-                'numeric',
+                'continuous',
                 'categorical',
                 'datetime',
                 'text'
@@ -180,7 +180,7 @@ CREATE TABLE datasets_datasetcolumn (
 
     CONSTRAINT dc_min_max_numeric
         CHECK (
-            data_type != 'numeric'
+            data_type != 'continuous'
             OR (
                 min_value IS NULL
                 AND max_value IS NULL

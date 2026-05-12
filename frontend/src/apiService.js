@@ -32,21 +32,55 @@ export function getRefreshToken() {
  */
 async function fetchAPI(endpoint, options = {}) {
   const url = `${apiUrl}${endpoint}`;
-  const accessToken = getAccessToken();
-  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  
+  const getAuthHeader = () => {
+    const token = getAccessToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
   
   try {
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...authHeader,
+        ...getAuthHeader(),
         ...options.headers,
       },
     });
 
+    // Handle 401 Unauthorized - Attempt token refresh
+    if (response.status === 401 && !endpoint.includes('/auth/token/refresh/') && getRefreshToken()) {
+      try {
+        const refresh = getRefreshToken();
+        const refreshResponse = await fetch(`${apiUrl}/auth/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh }),
+        });
+
+        if (refreshResponse.ok) {
+          const payload = await refreshResponse.json();
+          setAuthTokens({ access: payload.access, refresh: payload.refresh || refresh });
+          
+          // Retry the original request with the new token
+          response = await fetch(url, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeader(),
+              ...options.headers,
+            },
+          });
+        } else {
+          clearAuthTokens();
+        }
+      } catch (refreshError) {
+        clearAuthTokens();
+      }
+    }
+
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
     }
 
@@ -62,21 +96,50 @@ async function fetchAPI(endpoint, options = {}) {
  */
 async function uploadFile(endpoint, formData) {
   const url = `${apiUrl}${endpoint}`;
-  const accessToken = getAccessToken();
-  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+
+  const getAuthHeader = () => {
+    const token = getAccessToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
   
   try {
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: 'POST',
       body: formData,
-      headers: {
-        ...authHeader,
-      },
+      headers: getAuthHeader(),
       // Don't set Content-Type header - browser will set it with boundary
     });
 
+    // Handle 401 Unauthorized - Attempt token refresh
+    if (response.status === 401 && getRefreshToken()) {
+      try {
+        const refresh = getRefreshToken();
+        const refreshResponse = await fetch(`${apiUrl}/auth/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh }),
+        });
+
+        if (refreshResponse.ok) {
+          const payload = await refreshResponse.json();
+          setAuthTokens({ access: payload.access, refresh: payload.refresh || refresh });
+          
+          // Retry the upload with the new token
+          response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: getAuthHeader(),
+          });
+        } else {
+          clearAuthTokens();
+        }
+      } catch (refreshError) {
+        clearAuthTokens();
+      }
+    }
+
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
     }
 

@@ -2,7 +2,7 @@ import { FileBarChart, Trash2, PanelLeftClose, User, Sun, Moon } from 'lucide-re
 import { useState } from 'react';
 import { useTheme } from 'next-themes';
 
-type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+type TrainingStatus = 'running' | 'completed' | 'failed';
 
 interface Analysis {
   id: string;
