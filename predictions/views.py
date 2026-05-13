@@ -601,7 +601,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
             grouped = group_counterfactuals_by_features(all_cfs)
             
             # Select the best representative from each unique feature combination
-            diverse_cfs = select_top_counterfactuals_by_diversity(all_cfs, original_input, top_n=len(grouped))
+            diverse_cfs = select_top_counterfactuals_by_diversity(all_cfs, original_input, top_n=5)
             prediction.counterfactuals.all().delete()
             
             # Persist these representatives to the database to generate IDs
@@ -617,6 +617,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
                     num_changes=cf['num_changes'],
                     changed_features=cf['changed_features'],
                     feature_changes=cf['feature_changes'],
+                    confidence=cf['confidence'],
                     is_actionable=(score > 0.5),
                     actionability_score=score,
                     rank=rank

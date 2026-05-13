@@ -92,7 +92,17 @@ def get_feature_changes(original: Dict, counterfactual: Dict) -> Dict:
     
     for feature, cf_value in counterfactual.items():
         orig_value = original.get(feature)
-        if orig_value != cf_value:
+        
+        # Normalize types for comparison (handles "13" vs 13)
+        is_same = False
+        try:
+            if orig_value is not None and cf_value is not None:
+                if float(orig_value) == float(cf_value):
+                    is_same = True
+        except (ValueError, TypeError):
+            is_same = (orig_value == cf_value)
+            
+        if not is_same:
             change_info = {
                 'original': orig_value,
                 'counterfactual': cf_value,
@@ -101,10 +111,14 @@ def get_feature_changes(original: Dict, counterfactual: Dict) -> Dict:
             }
             
             # Calculate numeric changes
-            if isinstance(cf_value, (int, float)) and isinstance(orig_value, (int, float)):
-                change_info['change'] = cf_value - orig_value
-                if orig_value != 0:
-                    change_info['percent_change'] = (cf_value - orig_value) / orig_value * 100
+            try:
+                v_orig = float(orig_value)
+                v_cf = float(cf_value)
+                change_info['change'] = v_cf - v_orig
+                if v_orig != 0:
+                    change_info['percent_change'] = (v_cf - v_orig) / v_orig * 100
+            except (ValueError, TypeError):
+                pass
             
             changes[feature] = change_info
     

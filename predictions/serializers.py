@@ -12,7 +12,7 @@ class CounterfactualSerializer(serializers.ModelSerializer):
     class Meta:
         model = Counterfactual
         fields = [
-            'id', 'prediction', 'counterfactual_data', 'counterfactual_prediction',
+            'id', 'prediction', 'counterfactual_data', 'counterfactual_prediction', 'confidence',
             'counterfactual_class', 'distance', 'num_changes', 'changed_features',
             'is_actionable', 'actionability_score', 'feature_changes', 'rank',
             'explanation', 'created_at'

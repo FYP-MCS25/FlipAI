@@ -183,7 +183,11 @@ export function Dashboard() {
 
     const loadHistory = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/analyses/${activeAnalysis}/predictions/`);
+        const response = await fetch(`http://localhost:8000/api/v1/analyses/${activeAnalysis}/predictions/`, {
+          headers: {
+            ...authHeaders(),
+          },
+        });
         if (!response.ok) return;
         const data = await response.json();
         

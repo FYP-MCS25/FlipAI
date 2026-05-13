@@ -52,6 +52,7 @@ class Counterfactual(models.Model):
     changed_features = models.JSONField()  # List of changed feature names
     
     # Actionability metrics
+    confidence = models.FloatField(null=True, blank=True)
     is_actionable = models.BooleanField(default=True)
     actionability_score = models.FloatField(null=True, blank=True)
     

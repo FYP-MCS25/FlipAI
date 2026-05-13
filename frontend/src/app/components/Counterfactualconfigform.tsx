@@ -250,7 +250,11 @@ export function CounterfactualConfigForm({
         counterfactualError = 'Counterfactual request skipped because prediction id is unavailable.';
       }
 
+      console.log(counterfactualResult)
+
       let counterfactualCombinations = mapCounterfactualsToDisplayCombinations(counterfactualResult);
+
+      console.log(counterfactualCombinations)
       
       let llmSummary: string | null = null;
       if (typeof predictionResult?.prediction_id === 'number' && !counterfactualError && counterfactualCombinations.length > 0) {
