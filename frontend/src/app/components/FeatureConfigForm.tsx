@@ -8,7 +8,7 @@ interface FeatureConfigFormProps {
   datasetId: string;
   features: string[];
   datasetColumns: DatasetColumnMeta[];
-  // targetFeature: string; // Commented out - now selected by user
+  // targetFeature: string;
   onConfirm: (
     config: { targetFeature: string; frozenFeatures: string[] },
     createdAnalysis: AnalysisCreateResponse,

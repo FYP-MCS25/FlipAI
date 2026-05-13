@@ -548,8 +548,6 @@ export function Dashboard() {
       const fullDataset = await fullDatasetRes.json();
       const parsedDataset = toDataset(fullDataset);
 
-      console.log('Uploaded dataset:', fullDataset);
-
       upsertDataset(parsedDataset);
 
       setPendingDataset({
@@ -580,7 +578,6 @@ export function Dashboard() {
 
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
-    console.log('Selected dataset:', dataset);
     if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
       openFeatureConfigForDataset(dataset);
       return;
@@ -782,14 +779,14 @@ export function Dashboard() {
   const renderMainContent = () => {
     // Step 1 - feature config
     if (analysisStep === 'feature-config' && pendingDataset) {
-      const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
+      // const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
       return (
         <FeatureConfigForm
           datasetName={pendingDataset.name}
           datasetId={pendingDataset.id}
           features={pendingDataset.columnNames}
           datasetColumns={pendingDataset.columns}
-          targetFeature={targetFeature}
+          // targetFeature={targetFeature}
           onConfirm={handleFeatureConfigConfirm}
           onTrainingUpdate={handleTrainingUpdate}
         />
@@ -798,7 +795,6 @@ export function Dashboard() {
 
     // Step 2 - counterfactual outcome + instance values
     if (analysisStep === 'counterfactual-config' && pendingDataset && pendingConfig) {
-      console.log('Configuring counterfactuals with dataset:', pendingDataset);
       const featureMetas = pendingDataset.columns.map((col) => ({
         name: col.name,
         type: col.data_type as  'continuous' | 'categorical',
