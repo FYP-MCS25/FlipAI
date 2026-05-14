@@ -44,8 +44,8 @@ async function request(endpoint, options = {}, isFileUpload = false) {
       ...options.headers,
     };
 
-    // Only set JSON content type if not uploading a file
-    if (!isFileUpload && !headers['Content-Type']) {
+    // Only set JSON content type if not uploading a file and body is not FormData
+    if (!isFileUpload && !(options.body instanceof FormData) && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
 
@@ -92,7 +92,12 @@ async function request(endpoint, options = {}, isFileUpload = false) {
       throw error;
     }
 
-    return await response.json();
+    // 204 No Content (e.g. DELETE) has no body — skip JSON parsing
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return null;
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   } catch (error) {
     console.error(isFileUpload ? 'Upload Error:' : 'API Error:', error);
     throw error;
