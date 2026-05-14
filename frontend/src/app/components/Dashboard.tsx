@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import config from '../../config';
 import { AnalysisSidebar } from './AnalysisSidebar';
 import { AnalysisPanel } from './AnalysisPanel';
 import { EmptyAnalysisState } from './EmptyAnalysisState';
@@ -183,7 +184,7 @@ export function Dashboard() {
 
     const loadHistory = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/analyses/${activeAnalysis}/predictions/`, {
+        const response = await fetch(`${config.apiUrl}/analyses/${activeAnalysis}/predictions/`, {
           headers: {
             ...authHeaders(),
           },
@@ -475,7 +476,7 @@ export function Dashboard() {
 
   const handleDeleteAnalysis = async (analysisId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/analyses/${analysisId}/`, {
+      const response = await fetch(`${config.apiUrl}/analyses/${analysisId}/`, {
         method: 'DELETE',
         headers: {
           ...authHeaders(),
@@ -506,7 +507,7 @@ export function Dashboard() {
     });
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/datasets/', {
+      const response = await fetch(`${config.apiUrl}/datasets/`, {
         method: 'POST',
         headers: {
           ...authHeaders(),
@@ -527,7 +528,7 @@ export function Dashboard() {
         detail: 'Cleaning rows and extracting feature statistics...',
       });
 
-      await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/process/`, {
+      await fetch(`${config.apiUrl}/datasets/${uploadedDataset.id}/process/`, {
         method: 'POST',
         headers: {
           ...authHeaders(),
@@ -540,7 +541,7 @@ export function Dashboard() {
         detail: 'Loading processed dataset into the analysis flow...',
       });
 
-      const fullDatasetRes = await fetch(`http://localhost:8000/api/v1/datasets/${uploadedDataset.id}/`, {
+      const fullDatasetRes = await fetch(`${config.apiUrl}/datasets/${uploadedDataset.id}/`, {
         headers: {
           ...authHeaders(),
         },

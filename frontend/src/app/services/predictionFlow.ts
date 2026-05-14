@@ -1,5 +1,6 @@
 // Centralized helpers for the Phase 4 prediction + SHAP frontend flow.
 import { getAccessToken } from '../../apiService';
+import config from '../../config';
 
 const authHeaders = () => {
   const token = getAccessToken();
@@ -158,7 +159,7 @@ export const requestPredictionWithShap = async (
   inputData: Record<string, string | number>
 ): Promise<PredictionRequestResult> => {
   try {
-    const response = await fetch('http://localhost:8000/api/v1/predictions/predict/', {
+    const response = await fetch(`${config.apiUrl}/predictions/predict/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -225,7 +226,7 @@ export const requestCounterfactuals = async (
 
   try {
     const response = await fetch(
-      `http://localhost:8000/api/v1/predictions/${predictionId}/find_counterfactuals/`,
+      `${config.apiUrl}/predictions/${predictionId}/find_counterfactuals/`,
       {
         method: 'POST',
         headers: {
@@ -274,7 +275,7 @@ export const requestExplanation = async (
   counterfactualCombinations: any
 ): Promise<{ explanation: any; error: string | null }> => {
   try {
-    const response = await fetch(`http://localhost:8000/api/v1/predictions/${predictionId}/explain/`, {
+    const response = await fetch(`${config.apiUrl}/predictions/${predictionId}/explain/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

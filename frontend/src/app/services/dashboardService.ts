@@ -1,5 +1,6 @@
 import { Dataset } from '../components/Dashboard';
 import { getAccessToken } from '../../apiService';
+import config from '../../config';
 
 export interface DashboardAnalysis {
   id: string;
@@ -12,7 +13,7 @@ export interface DashboardAnalysis {
   createdAt: Date;
 }
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = config.apiUrl;
 
 const authHeaders = () => {
   const token = getAccessToken();
