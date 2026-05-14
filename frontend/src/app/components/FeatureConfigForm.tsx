@@ -2,6 +2,7 @@ import { Lock, Search, ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { useState, useMemo } from 'react';
 import { getAccessToken } from '../../apiService';
+import config from '../../config';
 
 interface FeatureConfigFormProps {
   datasetName: string;
@@ -174,7 +175,7 @@ export function FeatureConfigForm({
       return null;
     }
     try {
-      const response = await fetch('http://localhost:8000/api/v1/models/train/', {
+      const response = await fetch(`${config.apiUrl}/models/train/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -250,7 +251,7 @@ export function FeatureConfigForm({
 
       try {
         const analysisPayload = buildAnalysisPayload(modelId);
-        const response = await fetch('http://localhost:8000/api/v1/analyses/', {
+        const response = await fetch(`${config.apiUrl}/analyses/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
