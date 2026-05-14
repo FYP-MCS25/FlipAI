@@ -2,23 +2,35 @@ from rest_framework import serializers
 from predictions.models import Prediction, Counterfactual, SHAPExplanation, CounterfactualSearch
 
 
-class PredictionSerializer(serializers.ModelSerializer):
+class SHAPExplanationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Prediction
+        model = SHAPExplanation
         fields = '__all__'
-        read_only_fields = ['created_by', 'created_at', 'input_hash']
 
 
 class CounterfactualSerializer(serializers.ModelSerializer):
     class Meta:
         model = Counterfactual
-        fields = '__all__'
+        fields = [
+            'id', 'prediction', 'counterfactual_data', 'counterfactual_prediction', 'confidence',
+            'counterfactual_class', 'distance', 'num_changes', 'changed_features',
+            'is_actionable', 'actionability_score', 'feature_changes', 'rank',
+            'explanation', 'created_at'
+        ]
+        read_only_fields = ['created_at']
 
+class PredictionSerializer(serializers.ModelSerializer):
+    shap_explanation = SHAPExplanationSerializer(read_only=True)
+    counterfactuals = CounterfactualSerializer(many=True, read_only=True)
 
-class SHAPExplanationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SHAPExplanation
-        fields = '__all__'
+        model = Prediction
+        fields = [
+            'id', 'model', 'input_data', 'prediction_value', 
+            'prediction_class', 'prediction_probabilities', 
+            'created_at', 'shap_explanation', 'counterfactuals', 'llm_summary'
+        ]
+        read_only_fields = ['created_by', 'created_at', 'input_hash']
 
 
 class CounterfactualSearchSerializer(serializers.ModelSerializer):

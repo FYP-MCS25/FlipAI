@@ -20,8 +20,13 @@ import { PanelLeft, Plus, User } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { getAccessToken, authAPI } from '../../apiService';
 import { fetchAnalyses, fetchDatasets, fetchDatasetById as fetchDatasetByIdService } from '../services/dashboardService';
+import { 
+  mapCounterfactualsToDisplayCombinations, 
+  buildCounterfactualSummary,
+  mapShapTopFeatures
+} from '../services/predictionFlow';
 
-type TrainingStatus = 'idle' | 'running' | 'completed' | 'failed';
+type TrainingStatus = 'running' | 'completed' | 'failed';
 type TrainingBannerTone = 'info' | 'success' | 'error';
 type DashboardLoadingKind = 'dataset-upload' | 'model-training' | 'prediction';
 
@@ -106,6 +111,7 @@ interface PendingDataset {
 interface PendingConfig {
   targetFeature: string;
   frozenFeatures: string[];
+  modelId: number | null;
 }
 
 export function Dashboard() {
@@ -118,19 +124,51 @@ export function Dashboard() {
     return headers;
   };
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [activeAnalysis, setActiveAnalysis] = useState<string | null>(null);
   useEffect(() => {
     const loadAnalyses = async () => {
       try {
-        const loadedAnalyses = await fetchAnalyses();
-        const formattedAnalyses = loadedAnalyses.map(a => ({
-          ...a,
-          testAnalyses: [],
-          trainingStatus: 'idle' as TrainingStatus,
-          trainingModelId: null,
-          trainingMetrics: null,
-          trainingFeatureImportance: null,
-          trainingError: null,
-        }));
+        const response = await fetchAnalyses();
+        // Handle DRF pagination (if results exists) or raw array
+        const loadedAnalyses = Array.isArray(response) ? response : (response?.results || []);
+
+        const formattedAnalyses = loadedAnalyses.map((a: any) => {
+          // Robust extraction for Dataset ID (supports nested object or direct PK)
+          const rawDatasetId = a.dataset?.id ?? a.dataset ?? a.dataset_id ?? a.datasetId;
+          
+          // Robust extraction for Model ID (supports nested object, direct PK, or common field aliases)
+          const rawModelId = a.model?.id ?? a.model ?? a.model_id ?? a.modelId ?? a.trainingModelId;
+
+          const analysisName = a.analysis_name || a.analysisName;
+          const datasetName = a.dataset_name || a.datasetName;
+          const createdAt = a.created_at || a.createdAt;
+          const status = a.status || a.trainingStatus;
+          
+          return {
+            id: String(a.id),
+            datasetId: rawDatasetId != null ? String(rawDatasetId) : '',
+            datasetName: (analysisName && analysisName.trim() !== '' && analysisName !== 'Untitled Analysis') 
+              ? analysisName 
+              : (datasetName || 'Untitled Analysis'),
+            modelName: a.model_type || a.modelType || 'XGBoost Classifier',
+            targetFeature: a.target_feature || a.targetFeature,
+            frozenFeatures: a.frozen_features || a.frozenFeatures || [],
+            testAnalyses: [],
+            // Ensure valid date, fallback to now if parse fails
+            createdAt: (createdAt && !isNaN(Date.parse(createdAt))) ? new Date(createdAt) : new Date(),
+            // Map backend status safely to valid TrainingStatus values
+            trainingStatus: (() => {
+              const s = String(status || '').toLowerCase();
+              if (['running', 'training', 'pending'].includes(s)) return 'running';
+              if (['failed', 'error'].includes(s)) return 'failed';
+              return 'completed'; // Default to 'Ready' (Completed) for history
+            })() as TrainingStatus,
+            trainingModelId: (rawModelId != null && !isNaN(Number(rawModelId))) ? Number(rawModelId) : null,
+            trainingMetrics: a.metrics || a.trainingMetrics || null,
+            trainingFeatureImportance: a.feature_importance || a.trainingFeatureImportance || null,
+            trainingError: a.error_message || a.trainingError || null,
+          };
+        });
         setAnalyses(formattedAnalyses);
       } catch (err) {
         console.error('Error fetching analyses:', err);
@@ -138,6 +176,101 @@ export function Dashboard() {
     };
     loadAnalyses();
   }, []);
+
+  // Fetch prediction/counterfactual history when an analysis is selected
+  useEffect(() => {
+    if (!activeAnalysis) return;
+
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/v1/analyses/${activeAnalysis}/predictions/`, {
+          headers: {
+            ...authHeaders(),
+          },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        // Recover missing modelId from history items if the analysis object missed it.
+        // Every prediction record in the database is tied to the trained model.
+        const recoveredModelId = data.length > 0 && data[0].model ? Number(data[0].model) : null;
+
+        const history: TestAnalysis[] = data.map((item: any, index: number) => {
+          // Pass the whole shap_explanation object to the utility
+          const shapTopFeatures = item.shap_explanation 
+            ? mapShapTopFeatures(item.shap_explanation)
+            : [];
+            
+          // Retrieve and parse the LLM summary object
+          const llmObj = item.llm_summary && typeof item.llm_summary === 'object' ? item.llm_summary : {};
+          const savedLlmSummary = llmObj.summary || llmObj.explanation?.summary || (typeof item.llm_summary === 'string' ? item.llm_summary : null);
+          const llmOptions = Array.isArray(llmObj.options) ? llmObj.options : [];
+
+          // Manually map historical counterfactuals using pre-calculated DB changes
+          const counterfactualCombinations = (item.counterfactuals || [])
+            .filter((cf: any) => cf.rank >= 1 && cf.rank <= 5)
+            .map((cf: any) => ({
+              id: cf.id,
+              confidence: cf.confidence,
+              features: Object.entries(cf.feature_changes || {}).map(([name, val]: [string, any]) => ({
+                name,
+                value: `${val.original} -> ${val.counterfactual}`
+              })),
+              // Link the specific explanation from the LLM summary options.
+              // We match against cf.rank because the LLM chose options based on their 
+              // display order (1, 2, 3...) rather than database primary keys.
+              explanation: llmOptions.find((opt: any) => {
+                const optId = opt.selected_variant_id || opt.id;
+                // Robust matching: strip non-numeric characters (handles "Option 1" vs "1")
+                const cleanOptId = String(optId || '').replace(/\D/g, '');
+                return cleanOptId === String(cf.rank);
+              })?.explanation
+            }));
+
+          const counterfactualSummary = savedLlmSummary || "Counterfactual generation completed.";
+          
+          // Calculate sequential run number starting from 1 for the oldest run.
+          const runNumber = data.length - index;
+
+          return {
+            testId: runNumber.toString(),
+            timestamp: new Date(item.created_at),
+            inputData: item.input_data,
+            predictionId: item.id,
+            predictionClass: item.prediction_class,
+            predictionValue: item.prediction_value,
+            predictionProbabilities: item.prediction_probabilities,
+            predictionError: item.prediction_error,
+            llmSummary: savedLlmSummary || "No summary available for this historical run.",
+            shapAnalysis: {
+              summary: "Historical SHAP explanation.",
+              topFeatures: shapTopFeatures,
+            },
+            diceAnalysis: {
+              summary: counterfactualSummary,
+              combinations: counterfactualCombinations,
+            },
+          };
+        });
+
+        setAnalyses(prev => prev.map(a => {
+          if (a.id === activeAnalysis) {
+            return { 
+              ...a, 
+              testAnalyses: history,
+              // Use the recovered ID as a fallback if the current state is null
+              trainingModelId: a.trainingModelId ?? recoveredModelId 
+            };
+          }
+          return a;
+        }));
+      } catch (err) {
+        console.error('Error loading prediction history:', err);
+      }
+    };
+
+    loadHistory();
+  }, [activeAnalysis]);
 
   const [existingDatasets, setExistingDatasets] = useState<Dataset[]>([]);
   useEffect(() => {
@@ -153,7 +286,6 @@ export function Dashboard() {
     loadDatasets();
   }, []);
 
-  const [activeAnalysis, setActiveAnalysis] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [existingDatasetModalOpen, setExistingDatasetModalOpen] = useState(false);
@@ -196,13 +328,13 @@ export function Dashboard() {
 
   // -- Helpers ---------------------------------------------------------------
 
-  const toDataset = (dataset: any): Dataset => ({
-    id: dataset.id.toString(),
-    name: dataset.name,
-    uploadAt: new Date(dataset.uploaded_at),
-    numRows: dataset.num_rows,
-    columnNames: dataset.column_names ?? [],
-    columns: dataset.columns ?? [],
+  const toDataset = (d: any): Dataset => ({
+    id: String(d.id),
+    name: d.name || 'Unknown Dataset',
+    uploadAt: d.uploaded_at || d.uploadedAt ? new Date(d.uploaded_at || d.uploadedAt) : new Date(),
+    numRows: d.num_rows || d.numRows || 0,
+    columnNames: d.column_names || d.columnNames || [],
+    columns: d.columns || [],
   });
 
   const updateAnalysisTraining = (analysisId: string, updates: Partial<Analysis>) => {
@@ -309,6 +441,7 @@ export function Dashboard() {
     setPendingConfig({
       targetFeature: analysis.targetFeature,
       frozenFeatures: analysis.frozenFeatures,
+      modelId: analysis.trainingModelId,
     });
     setCounterfactualEntrySource('existing-analysis');
     setAnalysisStep('counterfactual-config');
@@ -415,8 +548,6 @@ export function Dashboard() {
       const fullDataset = await fullDatasetRes.json();
       const parsedDataset = toDataset(fullDataset);
 
-      console.log('Uploaded dataset:', fullDataset);
-
       upsertDataset(parsedDataset);
 
       setPendingDataset({
@@ -447,7 +578,6 @@ export function Dashboard() {
 
   const handleSelectDataset = (datasetId: string) => {
     const dataset = existingDatasets.find((d) => d.id === datasetId);
-    console.log('Selected dataset:', dataset);
     if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
       openFeatureConfigForDataset(dataset);
       return;
@@ -463,7 +593,8 @@ export function Dashboard() {
   /** Called when user clicks "Start Analysis" in FeatureConfigForm. */
   const handleFeatureConfigConfirm = (
     config: { targetFeature: string; frozenFeatures: string[] },
-    createdAnalysis: AnalysisCreateResponse
+    createdAnalysis: AnalysisCreateResponse,
+    trainedModelId: number // Receive the modelId directly from FeatureConfigForm
   ) => {
     const datasetSnapshot = pendingDataset;
     if (!datasetSnapshot) {
@@ -482,6 +613,7 @@ export function Dashboard() {
     setPendingConfig({
       targetFeature: nextTargetFeature,
       frozenFeatures: nextFrozenFeatures,
+      modelId: trainedModelId,
     });
     setCounterfactualEntrySource('new-analysis');
     setAnalysisStep('counterfactual-config');
@@ -495,11 +627,11 @@ export function Dashboard() {
       frozenFeatures: nextFrozenFeatures,
       testAnalyses: [],
       createdAt: createdAnalysis?.created_at ? new Date(createdAnalysis.created_at) : new Date(),
-      trainingStatus: 'running',
-      trainingModelId: null,
-      trainingMetrics: null,
-      trainingFeatureImportance: null,
-      trainingError: null,
+      trainingStatus: 'completed',
+      trainingModelId: trainedModelId, // Use the directly passed modelId
+      trainingMetrics: (createdAnalysis as any)?.metrics || null,
+      trainingFeatureImportance: (createdAnalysis as any)?.feature_importance || null,
+      trainingError: (createdAnalysis as any)?.error_message || null,
     };
     setAnalyses((prev) => [newAnalysis, ...prev]);
     setActiveAnalysis(newAnalysis.id);
@@ -611,13 +743,15 @@ export function Dashboard() {
     if (!currentAnalysis) return;
 
     const analysis = currentAnalysis;
-    if (!analysis.datasetId) {
+    const datasetId = analysis.datasetId;
+
+    if (!datasetId || datasetId === 'undefined' || datasetId === 'null' || datasetId === '') {
       console.error('Analysis is missing dataset id:', analysis.id);
       alert('This analysis is missing dataset metadata. Please create a new analysis from a dataset first.');
       return;
     }
 
-    const dataset = existingDatasets.find((d) => d.id === analysis.datasetId);
+    const dataset = existingDatasets.find((d) => String(d.id) === String(datasetId));
 
     if (dataset && dataset.columnNames.length > 0 && dataset.columns.length > 0) {
       openCounterfactualInputForAnalysis(analysis, dataset);
@@ -625,13 +759,14 @@ export function Dashboard() {
     }
 
     void (async () => {
-      const fetchedDataset = await fetchDatasetById(analysis.datasetId);
-      if (!fetchedDataset) {
+      // Try to fetch the full dataset metadata if it's not in the cache
+      const fetchedDataset = await fetchDatasetById(String(datasetId));
+      if (fetchedDataset && fetchedDataset.columns && fetchedDataset.columns.length > 0) {
+        openCounterfactualInputForAnalysis(analysis, fetchedDataset);
+      } else {
         console.error('Unable to find dataset metadata for analysis:', analysis.id);
         alert('Could not load dataset metadata for this analysis. Please choose a dataset and start a new analysis.');
-        return;
       }
-      openCounterfactualInputForAnalysis(analysis, fetchedDataset);
     })();
   };
 
@@ -644,14 +779,14 @@ export function Dashboard() {
   const renderMainContent = () => {
     // Step 1 - feature config
     if (analysisStep === 'feature-config' && pendingDataset) {
-      const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
+      // const targetFeature = pendingDataset.columns.find((c: any) => c.is_target)?.name ?? '';
       return (
         <FeatureConfigForm
           datasetName={pendingDataset.name}
           datasetId={pendingDataset.id}
           features={pendingDataset.columnNames}
           datasetColumns={pendingDataset.columns}
-          targetFeature={targetFeature}
+          // targetFeature={targetFeature}
           onConfirm={handleFeatureConfigConfirm}
           onTrainingUpdate={handleTrainingUpdate}
         />
@@ -660,7 +795,6 @@ export function Dashboard() {
 
     // Step 2 - counterfactual outcome + instance values
     if (analysisStep === 'counterfactual-config' && pendingDataset && pendingConfig) {
-      console.log('Configuring counterfactuals with dataset:', pendingDataset);
       const featureMetas = pendingDataset.columns.map((col) => ({
         name: col.name,
         type: col.data_type as  'continuous' | 'categorical',
@@ -672,7 +806,7 @@ export function Dashboard() {
           datasetName={pendingDataset.name}
           targetFeature={pendingConfig.targetFeature}
           frozenFeatures={pendingConfig.frozenFeatures}
-          modelId={currentAnalysis?.trainingModelId ?? null}
+          modelId={pendingConfig.modelId}
           featureMetas={featureMetas}
           canReturnToAnalysis={Boolean(currentAnalysis && currentAnalysis.testAnalyses.length > 0)}
           onBack={handleCounterfactualBack}

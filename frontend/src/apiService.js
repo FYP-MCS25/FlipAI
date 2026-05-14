@@ -30,61 +30,84 @@ export function getRefreshToken() {
 /**
  * Generic fetch wrapper with error handling
  */
-async function fetchAPI(endpoint, options = {}) {
+async function request(endpoint, options = {}, isFileUpload = false) {
   const url = `${apiUrl}${endpoint}`;
-  const accessToken = getAccessToken();
-  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  
-  try {
-    const response = await fetch(url, {
+
+  const getAuthHeader = () => {
+    const token = getAccessToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const executeFetch = async () => {
+    const headers = {
+      ...getAuthHeader(),
+      ...options.headers,
+    };
+
+    // Only set JSON content type if not uploading a file
+    if (!isFileUpload && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeader,
-        ...options.headers,
-      },
+      headers,
     });
+  };
+
+  try {
+    let response = await executeFetch();
+
+    // Handle 401 Unauthorized - Attempt token refresh
+    if (response.status === 401 && !endpoint.includes('/auth/token/refresh/') && getRefreshToken()) {
+      try {
+        const refresh = getRefreshToken();
+        const refreshResponse = await fetch(`${apiUrl}/auth/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh }),
+        });
+
+        if (refreshResponse.ok) {
+          const payload = await refreshResponse.json();
+          setAuthTokens({ access: payload.access, refresh: payload.refresh || refresh });
+
+          // Retry the original request with the new token
+          response = await executeFetch();
+        } else {
+          clearAuthTokens();
+          // Optionally trigger a custom event or redirect to login here
+          // window.dispatchEvent(new Event('session-expired'));
+        }
+      } catch (refreshError) {
+        clearAuthTokens();
+      }
+    }
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      // Attach status for easier handling in routes/components
+      error.status = response.status;
+      throw error;
     }
 
     return await response.json();
   } catch (error) {
-    console.error('API Error:', error);
+    console.error(isFileUpload ? 'Upload Error:' : 'API Error:', error);
     throw error;
   }
+}
+
+async function fetchAPI(endpoint, options = {}) {
+  return request(endpoint, options, false);
 }
 
 /**
  * Generic fetch for file uploads (FormData)
  */
 async function uploadFile(endpoint, formData) {
-  const url = `${apiUrl}${endpoint}`;
-  const accessToken = getAccessToken();
-  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        ...authHeader,
-      },
-      // Don't set Content-Type header - browser will set it with boundary
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || error.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Upload Error:', error);
-    throw error;
-  }
+  return request(endpoint, { method: 'POST', body: formData }, true);
 }
 
 // ============ Dataset APIs ============

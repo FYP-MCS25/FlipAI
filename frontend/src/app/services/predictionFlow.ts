@@ -53,6 +53,7 @@ export interface CounterfactualResponsePayload {
   total_generated?: number;
   unique_feature_combinations?: number;
   grouped_counterfactuals?: Record<string, CounterfactualOptionPayload[]>;
+  top_5?: CounterfactualOptionPayload[];
 }
 
 export interface CounterfactualRequestResult {
@@ -396,44 +397,15 @@ export const mapCounterfactualsToDisplayCombinations = (
   counterfactualResult: CounterfactualResponsePayload | null,
   maxItems = 5
 ): CounterfactualDisplayCombination[] => {
-  const grouped = counterfactualResult?.grouped_counterfactuals;
-  if (!grouped || typeof grouped !== 'object') return [];
+  const top5 = counterfactualResult?.top_5;
+  if (!Array.isArray(top5)) return [];
 
-  const options = Object.values(grouped)
-    .filter((group): group is CounterfactualOptionPayload[] => Array.isArray(group))
-    .flat();
-
-  const ranked = options
-    .map((option) => ({
-      confidence:
-        typeof option.confidence === 'number' && Number.isFinite(option.confidence)
-          ? option.confidence
-          : null,
-      combinedScore:
-        typeof option.combined_score === 'number' && Number.isFinite(option.combined_score)
-          ? option.combined_score
-          : null,
-      features: mapOptionToFeatures(option),
-    }))
-    .filter((option) => option.features.length > 0)
-    .sort((left, right) => {
-      const leftScore = left.combinedScore ?? -1;
-      const rightScore = right.combinedScore ?? -1;
-      if (leftScore !== rightScore) return rightScore - leftScore;
-
-      const leftConfidence = left.confidence ?? -1;
-      const rightConfidence = right.confidence ?? -1;
-      return rightConfidence - leftConfidence;
-    })
-    .slice(0, maxItems)
-    .map((option, index) => ({
-      id: index + 1,
-      confidence: option.confidence,
-      combinedScore: option.combinedScore,
-      features: option.features,
-    }));
-
-  return ranked;
+  return top5.slice(0, maxItems).map((option, index) => ({
+    id: option.id ?? index + 1,
+    confidence: typeof option.confidence === 'number' ? option.confidence : null,
+    combinedScore: typeof option.combined_score === 'number' ? option.combined_score : null,
+    features: mapOptionToFeatures(option),
+  }));
 };
 
 // Build user-facing summary text for DiCE output area.

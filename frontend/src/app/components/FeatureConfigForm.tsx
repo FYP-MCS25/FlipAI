@@ -1,4 +1,4 @@
-import { Lock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, Search, ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { useState, useMemo } from 'react';
 import { getAccessToken } from '../../apiService';
@@ -8,10 +8,11 @@ interface FeatureConfigFormProps {
   datasetId: string;
   features: string[];
   datasetColumns: DatasetColumnMeta[];
-  targetFeature: string; // Now passed in from parent
+  // targetFeature: string;
   onConfirm: (
     config: { targetFeature: string; frozenFeatures: string[] },
-    createdAnalysis: AnalysisCreateResponse
+    createdAnalysis: AnalysisCreateResponse,
+    modelId: number
   ) => void;
   onTrainingUpdate: (update: TrainingUpdate) => void;
 }
@@ -29,6 +30,7 @@ export interface AnalysisCreateResponse {
   target_feature?: string;
   frozen_features?: string[];
   created_at?: string;
+  model?: number;
 }
 
 export interface TrainingUpdate {
@@ -59,19 +61,30 @@ export function FeatureConfigForm({
   datasetId,
   features,
   datasetColumns,
-  targetFeature,
+  // targetFeature, // Commented out - now selected by user
   onConfirm,
   onTrainingUpdate,
 }: FeatureConfigFormProps) {
+  const [selectedTargetFeature, setSelectedTargetFeature] = useState<string>('');
   const [frozenFeatures, setFrozenFeatures] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Exclude the target feature from the selectable list
+  // Only categorical features are valid target features
+  const categoricalFeatures = useMemo(
+    () =>
+      features.filter((f) => {
+        const col = datasetColumns.find((c) => c.name === f);
+        return col?.data_type === 'categorical';
+      }),
+    [features, datasetColumns]
+  );
+
+  // Exclude selected target from the selectable (freeze) list
   const selectableFeatures = useMemo(
-    () => features.filter((f) => f !== targetFeature),
-    [features, targetFeature]
+    () => features.filter((f) => f !== selectedTargetFeature),
+    [features, selectedTargetFeature]
   );
 
   const filteredFeatures = useMemo(() => {
@@ -105,38 +118,42 @@ export function FeatureConfigForm({
     );
   };
 
-  // --- Utility: Build model training payload ---
+  // When target changes, unfreeze it if it was frozen
+  const handleTargetChange = (feature: string) => {
+    setSelectedTargetFeature(feature);
+    setFrozenFeatures((prev) => prev.filter((f) => f !== feature));
+    setCurrentPage(1);
+  };
+
   const buildTrainPayload = (analysisId: string) => ({
     model_name: `${datasetName}-analysis-${analysisId}`,
-    model_type: 'xgboost', // If dynamic, pass as param
-    task_type: 'classification', // If dynamic, pass as param
+    model_type: 'xgboost',
+    task_type: 'classification',
     dataset_id: Number(datasetId),
-    target_column: targetFeature,
+    target_column: selectedTargetFeature,
     feature_columns: selectableFeatures,
     train_test_split: 0.8,
   });
 
-  // --- Utility: Build analysis creation payload ---
   const buildAnalysisPayload = (modelId: number) => {
     const featureList = features.filter(
-      (f) => f !== targetFeature && !frozenFeatures.includes(f)
+      (f) => f !== selectedTargetFeature && !frozenFeatures.includes(f)
     );
     return {
-      target_feature: targetFeature,
+      target_feature: selectedTargetFeature,
       frozen_features: frozenFeatures,
       dataset: Number(datasetId),
       model: modelId,
       analysis_name: datasetName,
-      description: "",
-      model_type: "xgboost",
+      description: '',
+      model_type: 'xgboost',
       feature_list: featureList,
       num_features: featureList.length,
-      status: "active",
-      error_message: "",
+      status: 'active',
+      error_message: '',
     };
   };
 
-  // --- Utility: Handle API errors ---
   const handleApiError = (context: string, error: any, fallbackMsg = 'Unknown error') => {
     const msg = error?.error || error?.detail || (typeof error === 'string' ? error : fallbackMsg);
     console.error(`${context} failed:`, error);
@@ -144,7 +161,6 @@ export function FeatureConfigForm({
     return msg;
   };
 
-  // --- API: Train model ---
   const trainModelForAnalysis = async (analysisId: string): Promise<number | null> => {
     if (selectableFeatures.length === 0) {
       onTrainingUpdate({
@@ -210,9 +226,13 @@ export function FeatureConfigForm({
   };
 
   const handleConfirm = async () => {
+    if (!selectedTargetFeature) {
+      alert('Please select a target feature before starting the analysis.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // 1) Trigger model training using trainModelForAnalysis, then create analysis only if training succeeds
       const tempAnalysisId = Date.now().toString();
       const modelId = await trainModelForAnalysis(tempAnalysisId);
 
@@ -228,7 +248,6 @@ export function FeatureConfigForm({
         return;
       }
 
-      // 2) Now create the analysis, including the modelId and all required fields
       try {
         const analysisPayload = buildAnalysisPayload(modelId);
         const response = await fetch('http://localhost:8000/api/v1/analyses/', {
@@ -241,11 +260,11 @@ export function FeatureConfigForm({
         });
         const responseData = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const msg = handleApiError('Analysis creation', responseData, 'Failed to create analysis.');
+          handleApiError('Analysis creation', responseData, 'Failed to create analysis.');
           return;
         }
         const analysisId = responseData?.id != null ? String(responseData.id) : Date.now().toString();
-        onConfirm({ targetFeature, frozenFeatures }, responseData);
+        onConfirm({ targetFeature: selectedTargetFeature, frozenFeatures }, responseData, modelId);
         onTrainingUpdate({
           analysisId,
           status: 'completed',
@@ -278,19 +297,47 @@ export function FeatureConfigForm({
           <h1 className="text-3xl font-semibold text-foreground">{datasetName}</h1>
         </div>
 
-        {/* Target Feature Banner */}
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-500/20 dark:bg-amber-600/10 border border-amber-500/30 dark:border-amber-500/20">
-          <div className="p-2 rounded-lg bg-amber-500/30 dark:bg-amber-600/20 flex-shrink-0">
-            <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+        {/* Target Feature Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-500/25 dark:bg-amber-500/15">
+              <Target className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Target Feature</h2>
+              <p className="text-xs text-muted-foreground">
+                Select the categorical feature the model should predict.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-amber-700 dark:text-amber-400/80 font-medium uppercase tracking-wide">
-              Target Feature
-            </p>
-            <p className="text-foreground font-semibold text-lg">{targetFeature}</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Automatically detected from the dataset
-            </p>
+
+          <div className="p-4 rounded-xl border border-amber-500/30 dark:border-amber-500/20 bg-amber-500/10 dark:bg-amber-600/10">
+            <select
+              value={selectedTargetFeature}
+              onChange={(e) => handleTargetChange(e.target.value)}
+              className="w-full bg-input-background dark:bg-input/30 border border-input rounded-lg px-3 py-2.5 text-foreground text-sm appearance-none cursor-pointer focus:outline-none focus:border-amber-500/60 transition-all"
+            >
+              <option value="" disabled className="text-muted-foreground">
+                Select a categorical feature...
+              </option>
+              {categoricalFeatures.map((f) => (
+                <option key={f} value={f} className="text-foreground bg-background">
+                  {f}
+                </option>
+              ))}
+            </select>
+
+            {categoricalFeatures.length === 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                No categorical features found in this dataset.
+              </p>
+            )}
+
+            {selectedTargetFeature && (
+              <p className="text-xs text-amber-700 dark:text-amber-400/80 mt-2">
+                Selected: <span className="font-mono font-semibold">{selectedTargetFeature}</span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -329,7 +376,12 @@ export function FeatureConfigForm({
         </div>
 
         {/* Feature List */}
-        {filteredFeatures.length === 0 ? (
+        {!selectedTargetFeature ? (
+          <div className="bg-muted/40 rounded-xl border border-border text-center py-12 px-6">
+            <Target className="w-12 h-12 text-muted-foreground/60 mx-auto mb-3" />
+            <p className="text-muted-foreground">Select a target feature above to configure frozen features.</p>
+          </div>
+        ) : filteredFeatures.length === 0 ? (
           <div className="bg-muted/40 rounded-xl border border-border text-center py-12 px-6">
             <Search className="w-12 h-12 text-muted-foreground/60 mx-auto mb-3" />
             <p className="text-muted-foreground">No features found matching "{searchQuery}"</p>
@@ -416,11 +468,17 @@ export function FeatureConfigForm({
                   </span>
                 </div>
               )}
+              {!selectedTargetFeature && (
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-amber-400" />
+                  <span className="text-amber-600 dark:text-amber-400">No target feature selected</span>
+                </div>
+              )}
             </div>
             <button
               onClick={handleConfirm}
-              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors flex items-center justify-center gap-2"
-              disabled={isLoading}
+              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={isLoading || !selectedTargetFeature}
             >
               Start Analysis
             </button>

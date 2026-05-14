@@ -1,10 +1,13 @@
 import hmac
+import time
 import re
 import secrets
+import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.utils import timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from rest_framework import serializers, status
@@ -12,6 +15,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_CHALLENGE_TTL_SECONDS = 300
 GOOGLE_CHALLENGE_CACHE_PREFIX = 'google_auth_challenge:'
@@ -99,12 +104,25 @@ class GoogleSignInView(APIView):
             )
 
         try:
-            token_info = id_token.verify_oauth2_token(
-                google_token,
-                google_requests.Request(),
-                settings.GOOGLE_OAUTH_CLIENT_ID,
-            )
-        except ValueError:
+            try:
+                token_info = id_token.verify_oauth2_token(
+                    google_token,
+                    google_requests.Request(),
+                    settings.GOOGLE_OAUTH_CLIENT_ID,
+                )
+            except ValueError as e:
+                # If the token is "too early" (clock skew), wait 5 seconds and retry once
+                if "Token used too early" in str(e):
+                    time.sleep(5)
+                    token_info = id_token.verify_oauth2_token(
+                        google_token,
+                        google_requests.Request(),
+                        settings.GOOGLE_OAUTH_CLIENT_ID,
+                    )
+                else:
+                    raise e
+        except ValueError as e:
+            logger.error(f"Google Token Verification Failed: {str(e)}")
             return Response(
                 {'detail': 'Invalid Google token.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -147,6 +165,7 @@ class GoogleSignInView(APIView):
                 email=email,
                 first_name=token_info.get('given_name', ''),
                 last_name=token_info.get('family_name', ''),
+                last_login=timezone.now(), 
             )
             # Enforce Google-only login for application users.
             user.set_unusable_password()

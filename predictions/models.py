@@ -17,6 +17,9 @@ class Prediction(models.Model):
     prediction_value = models.FloatField()
     prediction_class = models.CharField(max_length=255, null=True, blank=True)
     prediction_probabilities = models.JSONField(null=True, blank=True)
+
+    # AI Explanations
+    llm_summary = models.JSONField(null=True, blank=True)
     
     # User and timestamps
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -49,6 +52,7 @@ class Counterfactual(models.Model):
     changed_features = models.JSONField()  # List of changed feature names
     
     # Actionability metrics
+    confidence = models.FloatField(null=True, blank=True)
     is_actionable = models.BooleanField(default=True)
     actionability_score = models.FloatField(null=True, blank=True)
     
@@ -57,6 +61,9 @@ class Counterfactual(models.Model):
     
     # Ranking (for multiple counterfactuals)
     rank = models.IntegerField(default=1)
+
+    # AI-generated strategy guide/explanation for this specific counterfactual
+    explanation = models.TextField(null=True, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
