@@ -99,7 +99,7 @@ async function request(endpoint, options = {}, isFileUpload = false) {
   }
 }
 
-async function fetchAPI(endpoint, options = {}) {
+export async function fetchAPI(endpoint, options = {}) {
   return request(endpoint, options, false);
 }
 
