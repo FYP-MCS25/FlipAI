@@ -1,11 +1,5 @@
 // Centralized helpers for the Phase 4 prediction + SHAP frontend flow.
-import { getAccessToken } from '../../apiService';
-import config from '../../config';
-
-const authHeaders = () => {
-  const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+import { fetchAPI } from '../../apiService';
 
 export interface PredictResponsePayload {
   prediction_id?: number;
@@ -159,38 +153,14 @@ export const requestPredictionWithShap = async (
   inputData: Record<string, string | number>
 ): Promise<PredictionRequestResult> => {
   try {
-    const response = await fetch(`${config.apiUrl}/predictions/predict/`, {
+    const responseData = await fetchAPI('/predictions/predict/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders(),
-      },
       body: JSON.stringify({
         model_id: modelId,
         input_data: inputData,
         generate_shap: true,
       }),
     });
-
-    let responseData: any = {};
-    try {
-      responseData = await response.json();
-    } catch {
-      responseData = {};
-    }
-
-    if (!response.ok) {
-      const message =
-        responseData?.error ||
-        responseData?.detail ||
-        (typeof responseData === 'string' ? responseData : 'Prediction request failed.');
-
-      return {
-        predictionResult: null,
-        predictionError: message,
-      };
-    }
-
     return {
       predictionResult: responseData,
       predictionError: null,
@@ -225,38 +195,10 @@ export const requestCounterfactuals = async (
   }
 
   try {
-    const response = await fetch(
-      `${config.apiUrl}/predictions/${predictionId}/find_counterfactuals/`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders(),
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
-
-    let responseData: any = {};
-    try {
-      responseData = await response.json();
-    } catch {
-      responseData = {};
-    }
-
-    if (!response.ok) {
-      const message =
-        responseData?.error ||
-        responseData?.detail ||
-        responseData?.status ||
-        (typeof responseData === 'string' ? responseData : 'Counterfactual request failed.');
-
-      return {
-        counterfactualResult: null,
-        counterfactualError: message,
-      };
-    }
-
+    const responseData = await fetchAPI(`/predictions/${predictionId}/find_counterfactuals/`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
     return {
       counterfactualResult: responseData,
       counterfactualError: null,
@@ -275,37 +217,13 @@ export const requestExplanation = async (
   counterfactualCombinations: any
 ): Promise<{ explanation: any; error: string | null }> => {
   try {
-    const response = await fetch(`${config.apiUrl}/predictions/${predictionId}/explain/`, {
+    const responseData = await fetchAPI(`/predictions/${predictionId}/explain/`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders(),
-      },
       body: JSON.stringify({
         expected_outcome: expectedOutcome,
         counterfactual_combinations: counterfactualCombinations,
       }),
     });
-
-    let responseData: any = {};
-    try {
-      responseData = await response.json();
-    } catch {
-      responseData = {};
-    }
-
-    if (!response.ok) {
-      const message =
-        responseData?.error ||
-        responseData?.detail ||
-        (typeof responseData === 'string' ? responseData : 'Explanation request failed.');
-
-      return {
-        explanation: null,
-        error: message,
-      };
-    }
-
     return {
       explanation: responseData.explanation,
       error: null,

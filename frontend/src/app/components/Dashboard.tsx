@@ -19,7 +19,7 @@ import { type TestAnalysis } from './CollapsibleAnalysis';
 import { UserProfileModal } from './UserProfileModal';
 import { PanelLeft, Plus, User } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
-import { getAccessToken, authAPI } from '../../apiService';
+import { getAccessToken, authAPI, fetchAPI } from '../../apiService';
 import { fetchAnalyses, fetchDatasets, fetchDatasetById as fetchDatasetByIdService } from '../services/dashboardService';
 import { 
   mapCounterfactualsToDisplayCombinations, 
@@ -131,7 +131,7 @@ export function Dashboard() {
       try {
         const response = await fetchAnalyses();
         // Handle DRF pagination (if results exists) or raw array
-        const loadedAnalyses = Array.isArray(response) ? response : (response?.results || []);
+        const loadedAnalyses = Array.isArray(response) ? response : ((response as any)?.results || []);
 
         const formattedAnalyses = loadedAnalyses.map((a: any) => {
           // Robust extraction for Dataset ID (supports nested object or direct PK)
@@ -184,13 +184,8 @@ export function Dashboard() {
 
     const loadHistory = async () => {
       try {
-        const response = await fetch(`${config.apiUrl}/analyses/${activeAnalysis}/predictions/`, {
-          headers: {
-            ...authHeaders(),
-          },
-        });
-        if (!response.ok) return;
-        const data = await response.json();
+        const response = await fetchAPI(`/analyses/${activeAnalysis}/predictions/`);
+        const data = Array.isArray(response) ? response : [];
         
         // Recover missing modelId from history items if the analysis object missed it.
         // Every prediction record in the database is tied to the trained model.
@@ -476,13 +471,7 @@ export function Dashboard() {
 
   const handleDeleteAnalysis = async (analysisId: string) => {
     try {
-      const response = await fetch(`${config.apiUrl}/analyses/${analysisId}/`, {
-        method: 'DELETE',
-        headers: {
-          ...authHeaders(),
-        },
-      });
-      if (!response.ok) throw new Error('Delete failed');
+      await fetchAPI(`/analyses/${analysisId}/`, { method: 'DELETE' });
 
       const updatedAnalyses = analyses.filter((a) => a.id !== analysisId);
       setAnalyses(updatedAnalyses);
@@ -507,20 +496,10 @@ export function Dashboard() {
     });
 
     try {
-      const response = await fetch(`${config.apiUrl}/datasets/`, {
+      const uploadedDataset = await fetchAPI('/datasets/', {
         method: 'POST',
-        headers: {
-          ...authHeaders(),
-        },
         body: formData,
       });
-
-      if (!response.ok) {
-        const errText = await response.text(); // See server error message
-        throw new Error(`Upload failed: ${errText}`);
-      }
-
-      const uploadedDataset = await response.json();
 
       setDashboardLoading({
         kind: 'dataset-upload',
@@ -528,12 +507,7 @@ export function Dashboard() {
         detail: 'Cleaning rows and extracting feature statistics...',
       });
 
-      await fetch(`${config.apiUrl}/datasets/${uploadedDataset.id}/process/`, {
-        method: 'POST',
-        headers: {
-          ...authHeaders(),
-        },
-      });
+      await fetchAPI(`/datasets/${uploadedDataset.id}/process/`, { method: 'POST' });
 
       setDashboardLoading({
         kind: 'dataset-upload',
@@ -541,12 +515,7 @@ export function Dashboard() {
         detail: 'Loading processed dataset into the analysis flow...',
       });
 
-      const fullDatasetRes = await fetch(`${config.apiUrl}/datasets/${uploadedDataset.id}/`, {
-        headers: {
-          ...authHeaders(),
-        },
-      });
-      const fullDataset = await fullDatasetRes.json();
+      const fullDataset = await fetchAPI(`/datasets/${uploadedDataset.id}/`);
       const parsedDataset = toDataset(fullDataset);
 
       upsertDataset(parsedDataset);

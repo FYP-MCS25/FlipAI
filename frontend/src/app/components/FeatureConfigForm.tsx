@@ -1,8 +1,7 @@
 import { Lock, Search, ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { LoadingOverlay } from './ui/loading-overlay';
 import { useState, useMemo } from 'react';
-import { getAccessToken } from '../../apiService';
-import config from '../../config';
+import { fetchAPI } from '../../apiService';
 
 interface FeatureConfigFormProps {
   datasetName: string;
@@ -47,15 +46,6 @@ export interface TrainingUpdate {
 }
 
 const FEATURES_PER_PAGE = 10;
-
-const authHeaders = (): Record<string, string> => {
-  const token = getAccessToken();
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
-};
 
 export function FeatureConfigForm({
   datasetName,
@@ -175,27 +165,10 @@ export function FeatureConfigForm({
       return null;
     }
     try {
-      const response = await fetch(`${config.apiUrl}/models/train/`, {
+      const responseData = await fetchAPI('/models/train/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders(),
-        },
         body: JSON.stringify(buildTrainPayload(analysisId)),
       });
-      const responseData = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const msg = handleApiError('Training', responseData, 'Training request failed.');
-        onTrainingUpdate({
-          analysisId,
-          status: 'failed',
-          tone: 'error',
-          message: 'Training failed.',
-          detail: msg,
-          trainingError: msg,
-        });
-        return null;
-      }
       const modelId = typeof responseData?.model_id === 'number' ? responseData.model_id : null;
       onTrainingUpdate({
         analysisId,
@@ -251,19 +224,10 @@ export function FeatureConfigForm({
 
       try {
         const analysisPayload = buildAnalysisPayload(modelId);
-        const response = await fetch(`${config.apiUrl}/analyses/`, {
+        const responseData = await fetchAPI('/analyses/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders(),
-          },
           body: JSON.stringify(analysisPayload),
         });
-        const responseData = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          handleApiError('Analysis creation', responseData, 'Failed to create analysis.');
-          return;
-        }
         const analysisId = responseData?.id != null ? String(responseData.id) : Date.now().toString();
         onConfirm({ targetFeature: selectedTargetFeature, frozenFeatures }, responseData, modelId);
         onTrainingUpdate({
