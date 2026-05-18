@@ -71,8 +71,8 @@ class DatasetViewSet(viewsets.ModelViewSet):
             
             # Try to fetch UCI metadata if this is a known UCI dataset
             uci_metadata = None
-            if is_known_uci_dataset(dataset.name):
-                uci_metadata = get_uci_metadata_for_dataset(dataset.name)
+            # if is_known_uci_dataset(dataset.name):
+            #     uci_metadata = get_uci_metadata_for_dataset(dataset.name)
             
             # Create/update DatasetColumn records
             dataset.columns.all().delete()  # Clear existing columns first
@@ -87,7 +87,7 @@ class DatasetViewSet(viewsets.ModelViewSet):
                         break
             else:
                 # Fall back to heuristic - find first match
-                target_candidates = ['target', 'class', 'label', 'income', 'outcome', 'y']
+                target_candidates = ['target', 'class', 'label', 'income', 'outcome', 'y', 'loan_status', 'loan_approval_status']
                 for col_name in metadata['column_names']:
                     if col_name.lower() in target_candidates:
                         target_column = col_name
