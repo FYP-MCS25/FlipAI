@@ -148,7 +148,7 @@ export function AnalysisPanel({
 
   return (
     <div className="flex-1 overflow-y-auto relative">
-      <div className="max-w-5xl mx-auto p-8 space-y-6">
+      <div className="max-w-3xl mx-auto p-8 space-y-6">
         <div className="space-y-2">
           <div className="flex items-center gap-4 mb-2">
             <h1 className="text-3xl font-semibold text-foreground">{datasetName}</h1>
@@ -163,10 +163,16 @@ export function AnalysisPanel({
                 Frozen: {frozenFeatures.join(', ')}
               </span>
             )}
+            <span
+              className="px-3 py-1 bg-green-500/25 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-lg text-sm"
+              title={statusMeta.description}
+            >
+              Training: {statusMeta.label}
+            </span>
           </div>
         </div>
 
-        <div className="bg-muted/40 rounded-xl border border-border p-6 space-y-4">
+        {/* <div className="bg-muted/40 rounded-xl border border-border p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-foreground">Model Training Summary</h2>
             <span className={`px-3 py-1 rounded-lg text-xs font-semibold tracking-wide ${statusMeta.className}`}>
@@ -224,7 +230,7 @@ export function AnalysisPanel({
               Error: {trainingError}
             </p>
           )}
-        </div>
+        </div> */}
 
         <div className="bg-muted/40 rounded-xl border border-border p-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">

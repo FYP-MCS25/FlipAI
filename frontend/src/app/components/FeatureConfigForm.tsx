@@ -256,7 +256,7 @@ export function FeatureConfigForm({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto relative">
-      <div className="max-w-4xl mx-auto p-8 space-y-8">
+      <div className="max-w-3xl mx-auto p-8 space-y-6">
         {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-foreground">{datasetName}</h1>
@@ -269,18 +269,20 @@ export function FeatureConfigForm({
               <Target className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-foreground">Target Feature</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="text-lg font-semibold text-foreground">Target Feature</h2>
+              <p className="text-sm text-muted-foreground">
                 Select the categorical feature the model should predict.
               </p>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl border border-amber-500/30 dark:border-amber-500/20 bg-amber-500/10 dark:bg-amber-600/10">
+          <div className="space-y-2">
             <select
               value={selectedTargetFeature}
               onChange={(e) => handleTargetChange(e.target.value)}
-              className="w-full bg-input-background dark:bg-input/30 border border-input rounded-lg px-3 py-2.5 text-foreground text-sm appearance-none cursor-pointer focus:outline-none focus:border-amber-500/60 transition-all"
+              className={`w-full bg-amber-500/10 dark:bg-amber-600/10 border border-amber-500/30 dark:border-amber-500/20 rounded-lg px-5 py-2.5 text-smld appearance-none cursor-pointer focus:outline-none focus:border-amber-500/60 transition-all ${
+                selectedTargetFeature ? 'text-amber-700 dark:text-amber-400/80 font-mono font-semibold' : 'text-foreground'
+              }`}
             >
               <option value="" disabled className="text-muted-foreground">
                 Select a categorical feature...
@@ -297,17 +299,23 @@ export function FeatureConfigForm({
                 No categorical features found in this dataset.
               </p>
             )}
-
-            {selectedTargetFeature && (
-              <p className="text-xs text-amber-700 dark:text-amber-400/80 mt-2">
-                Selected: <span className="font-mono font-semibold">{selectedTargetFeature}</span>
-              </p>
-            )}
           </div>
         </div>
 
         {/* Search + Legend */}
         <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-500/25 dark:bg-blue-500/15">
+              <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Frozen Features</h2>
+              <p className="text-sm text-muted-foreground">
+                Select features that should remain constant (optional)
+              </p>
+            </div>
+          </div>
+
           <div className="relative">
             <div className="absolute left-3 top-1/2 -translate-y-1/2">
               <Search className="w-5 h-5 text-muted-foreground" />
@@ -317,7 +325,7 @@ export function FeatureConfigForm({
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search features..."
-              className="w-full pl-11 pr-4 py-3 bg-input-background dark:bg-input/30 border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full pl-11 pr-4 py-2.5 bg-input-background dark:bg-input/30 border border-input rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
 
@@ -327,17 +335,6 @@ export function FeatureConfigForm({
             </p>
           )}
 
-          <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50 border border-border max-w-sm">
-            <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20 flex-shrink-0">
-              <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-foreground font-medium mb-1">Frozen Features</h3>
-              <p className="text-sm text-muted-foreground">
-                Select features that should remain constant (optional)
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Feature List */}
@@ -373,13 +370,31 @@ export function FeatureConfigForm({
                 return (
                   <div
                     key={feature}
-                    className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors"
+                    className={`flex items-center gap-4 py-3 px-4 transition-colors ${
+                      isFrozen
+                        ? 'bg-blue-50/70 dark:bg-blue-500/10 hover:bg-blue-50/90 dark:hover:bg-blue-500/20'
+                        : 'hover:bg-muted/50'
+                    }`}
                   >
                     <div className="flex-1 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center text-sm text-muted-foreground flex-shrink-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${
+                          isFrozen
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200'
+                            : 'bg-muted/60 text-muted-foreground'
+                        }`}
+                      >
                         {globalIndex}
                       </div>
-                      <span className="text-foreground">{feature}</span>
+                      <span
+                        className={
+                          isFrozen
+                            ? 'text-blue-700 dark:text-blue-200 font-medium'
+                            : 'text-foreground'
+                        }
+                      >
+                        {feature}
+                      </span>
                     </div>
                     <div className="flex items-center justify-center w-20">
                       <input
@@ -422,9 +437,9 @@ export function FeatureConfigForm({
         )}
 
         {/* Action Section */}
-        <div className="p-4 border border-border rounded-xl bg-muted/40">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-6">
+        <div className="sticky bottom-0 -mx-8 px-8 pb-8 pt-4 bg-gradient-to-t from-background via-background/90 to-transparent">
+          <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/40 backdrop-blur">
+            <div className="text-sm text-muted-foreground space-y-0.5">
               {frozenFeatures.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-blue-400" />
@@ -439,10 +454,15 @@ export function FeatureConfigForm({
                   <span className="text-amber-600 dark:text-amber-400">No target feature selected</span>
                 </div>
               )}
+              {selectedTargetFeature && !isLoading && (
+                <div className="text-emerald-600 dark:text-emerald-400/80">
+                  Ready to start model training.
+                </div>
+              )}
             </div>
             <button
               onClick={handleConfirm}
-              className="w-full md:w-auto px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="shrink-0 px-6 py-2.5 rounded-lg font-medium text-sm transition-all bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
               disabled={isLoading || !selectedTargetFeature}
             >
               Start Analysis

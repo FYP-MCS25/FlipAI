@@ -41,7 +41,7 @@ function CounterfactualCard({ combination, displayId }: { combination: Counterfa
   return (
     <div className="bg-muted/50 rounded-lg p-4 border border-border/60">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-sm">
-        <p className="text-muted-foreground font-medium">Counterfactual #{displayId}</p>
+        <p className="text-muted-foreground font-medium">Counterfactual {displayId}</p>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           {combination.confidence !== null && combination.confidence !== undefined && (
             <span>Confidence: {(combination.confidence * 100).toFixed(1)}%</span>
@@ -77,7 +77,7 @@ function CounterfactualCard({ combination, displayId }: { combination: Counterfa
       )}
 
       {combination.explanation && (
-        <div className="mt-4 pt-4 border-t border-border/60">
+        <div className="mt-4 pt-2.5 border-t border-border/60">
           <button
             onClick={() => setShowExplanation(!showExplanation)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
@@ -87,7 +87,7 @@ function CounterfactualCard({ combination, displayId }: { combination: Counterfa
           </button>
           
           {showExplanation && (
-            <div className="mt-3 p-3 bg-blue-900/10 rounded-lg border border-blue-500/20">
+            <div className="mt-3 p-3 bg-blue-500/10 rounded-lg border border-transparent">
               <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
                 {combination.explanation}
               </p>
@@ -116,7 +116,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
         className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
       >
         <div className="text-left">
-          <p className="text-foreground font-medium">Run #{analysis.testId}</p>
+          <p className="text-foreground font-medium">Run {analysis.testId}</p>
           <p className="text-muted-foreground text-sm">
             {analysis.timestamp.toLocaleString('en-US', {
               month: 'short',
@@ -136,7 +136,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
 
       {isExpanded && (
         <div className="px-4 pb-6 space-y-6">
-          <div className="bg-muted/40 rounded-lg border border-border p-4">
+          <div className="bg-muted/40 rounded-lg border border-transparent p-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Input Data</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {Object.entries(analysis.inputData).map(([key, value]) => (
@@ -148,7 +148,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
             </div>
           </div>
 
-          <div className="bg-muted/40 rounded-lg border border-border p-4">
+          <div className="bg-muted/40 rounded-lg border border-transparent p-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Prediction Result</h3>
 
             {analysis.predictionError ? (
@@ -168,7 +168,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
             )}
           </div>
 
-          <div className="bg-muted/40 rounded-lg border border-border p-4">
+          <div className="bg-muted/40 rounded-lg border border-transparent p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-purple-600/20">
                 <Brain className="w-4 h-4 text-purple-400" />
@@ -178,7 +178,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
             <p className="text-foreground text-sm leading-relaxed whitespace-pre-line">{analysis.llmSummary}</p>
           </div>
 
-          <div className="bg-muted/40 rounded-lg border border-border p-4">
+          <div className="bg-muted/40 rounded-lg border border-transparent p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-blue-500/25 dark:bg-blue-600/20">
                 <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -196,7 +196,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
                       <span className="text-foreground font-medium">{feature.name}</span>
                       <span className="text-blue-600 dark:text-blue-300">{(feature.importance * 100).toFixed(1)}% Impact</span>
                     </div>
-                    <div className="h-2 bg-muted/50 rounded-full overflow-hidden border border-border">
+                    <div className="h-2 bg-muted rounded-full overflow-hidden border border-muted">
                       <div
                         className="h-full bg-blue-500/80 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"
                         style={{ width: `${Math.max(0, Math.min(100, feature.importance * 100))}%` }}
@@ -208,7 +208,7 @@ export function CollapsibleAnalysis({ analysis, isExpanded, onToggle }: Collapsi
             )}
           </div>
 
-          <div className="bg-muted/40 rounded-lg border border-border p-4">
+          <div className="bg-muted/40 rounded-lg border border-transparent p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-green-500/25 dark:bg-green-600/20">
                 <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />

@@ -845,11 +845,7 @@ export function Dashboard() {
               </>
             )}
             <h2 className="text-lg font-medium text-foreground">
-              {analysisStep === 'feature-config' && pendingDataset
-                ? pendingDataset.name
-                : analysisStep === 'counterfactual-config' && pendingDataset
-                ? pendingDataset.name
-                : currentAnalysis?.datasetName || 'Counterfactual Generation Tool'}
+              {'FlipAI'}
             </h2>
           </div>
 
