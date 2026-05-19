@@ -148,7 +148,7 @@ export function Login() {
           <div className="inline-flex items-center justify-center p-3 bg-blue-600/20 rounded-xl mb-4">
             <FileBarChart className="w-10 h-10 text-blue-400" />
           </div>
-          <h1 className="text-3xl font-semibold mb-2">Welcome Back</h1>
+          <h1 className="text-3xl font-semibold mb-2">Welcome Back to FLIPAI</h1>
           <p className="text-muted-foreground">
             Sign in with Google to access your counterfactual analyses
           </p>

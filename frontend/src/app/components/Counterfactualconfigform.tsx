@@ -325,19 +325,25 @@ export function CounterfactualConfigForm({
   const isFrozen = (name: string) => frozenFeatures.includes(name);
 
   const renderInstanceInput = (meta: FeatureMeta) => {
+    const isFieldFrozen = isFrozen(meta.name);
     const baseClass =
-      'w-full bg-input-background dark:bg-input/30 border border-input rounded-lg px-3 py-2.5 text-sm text-foreground ' +
-      'placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/60 transition-all';
+      `w-full border rounded-lg px-3 py-2.5 text-sm text-foreground ` +
+      `placeholder:text-muted-foreground focus:outline-none transition-all ` +
+      (isFieldFrozen
+        ? 'bg-blue-100/40 dark:bg-blue-500/10 border-transparent focus:border-blue-500/70'
+        : 'bg-input-background dark:bg-input/30 border-input focus:border-blue-500/60');
 
     if (meta.type === 'categorical' && meta.possibleValues?.length) {
       return (
         <select
           value={instanceValues[meta.name]}
           onChange={(e) => setField(meta.name, e.target.value)}
-          className={`${baseClass} appearance-none cursor-pointer`}
+          className={`${baseClass} appearance-none cursor-pointer ${
+            instanceValues[meta.name] ? '' : 'text-muted-foreground'
+          }`}
         >
           <option value="" disabled className="text-muted-foreground">
-            Select a value...
+            Select a value
           </option>
           {meta.possibleValues.map((val) => (
             <option key={val} value={val} className="text-foreground bg-background">
@@ -354,7 +360,7 @@ export function CounterfactualConfigForm({
         step={meta.type === 'float' ? 'any' : '1'}
         value={instanceValues[meta.name]}
         onChange={(e) => setField(meta.name, e.target.value)}
-        placeholder="Enter value..."
+        placeholder="Enter value"
         className={baseClass}
       />
     );
@@ -384,7 +390,6 @@ export function CounterfactualConfigForm({
         {/* -- Page header -- */}
         <div className="flex items-start gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-1">{datasetName}</p>
             <h1 className="text-2xl font-semibold text-foreground">Configure Counterfactual Query</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Define the outcome you want to flip, then provide the instance values to explain.
@@ -399,14 +404,14 @@ export function CounterfactualConfigForm({
               <Target className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-foreground">Desired Outcome Condition</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="text-lg font-semibold text-foreground">Desired Outcome Condition</h2>
+              <p className="text-sm text-muted-foreground">
                 Specify what value <span className="text-foreground font-mono">{targetFeature}</span> should flip to.
               </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-4">
+          <div className="space-y-4">
             {/* Feature badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 dark:bg-amber-500/10 border border-amber-500/40 dark:border-amber-500/20">
               <Target className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -429,7 +434,7 @@ export function CounterfactualConfigForm({
                   "
                 >
                   <option value="" disabled className="text-muted-foreground">
-                    Select target value...
+                    Select target value
                   </option>
                   {targetMeta.possibleValues.map((val) => (
                     <option key={val} value={val} className="text-foreground bg-background">
@@ -446,7 +451,7 @@ export function CounterfactualConfigForm({
                   step={targetMeta?.type === 'float' ? 'any' : '1'}
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
-                  placeholder="Enter target value..."
+                  placeholder="Enter target value"
                   className="
                     flex-1 bg-input-background dark:bg-input/30 border border-input rounded-lg px-4 py-2.5
                     text-foreground placeholder:text-muted-foreground font-mono text-sm
@@ -463,7 +468,7 @@ export function CounterfactualConfigForm({
                   type="text"
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
-                  placeholder="Enter target value..."
+                  placeholder="Enter target value"
                   className="
                     flex-1 bg-input-background dark:bg-input/30 border border-input rounded-lg px-4 py-2.5
                     text-foreground placeholder:text-muted-foreground font-mono text-sm
@@ -477,7 +482,7 @@ export function CounterfactualConfigForm({
             {targetValue && (
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-xs text-muted-foreground">Condition preview:</span>
-                <code className="text-xs bg-muted/50 border border-border rounded px-2 py-1 text-emerald-600 dark:text-emerald-300 font-mono">
+                <code className="text-xs text-amber-600 dark:text-amber-400 font-mono">
                   {targetFeature} {isNumericTarget ? op : '='} {targetValue}
                 </code>
               </div>
@@ -492,8 +497,8 @@ export function CounterfactualConfigForm({
               <FlaskConical className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-foreground">Instance Feature Values</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="text-lg font-semibold text-foreground">Instance Feature Values</h2>
+              <p className="text-sm text-muted-foreground">
                 Enter the current values of each feature for the instance you want to explain.
               </p>
             </div>
@@ -532,14 +537,14 @@ export function CounterfactualConfigForm({
                   <div
                     key={meta.name}
                     className={`grid grid-cols-[1fr_1.6fr] gap-4 px-5 py-3.5 items-center transition-colors ${
-                      frozen ? 'bg-blue-50/60 dark:bg-blue-900/10' : 'hover:bg-muted/30'
+                      frozen ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-muted/30'
                     }`}
                   >
                     {/* Feature label */}
                     <div className="flex items-center gap-2 min-w-0">
                       {frozen && (
                         <span title="Frozen - value won't change during generation">
-                        <Lock className="w-3.5 h-3.5 text-blue-400/70 shrink-0" />
+                        <Lock className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                         </span>
                       )}
                       <span className="text-sm font-mono truncate text-foreground">
@@ -547,7 +552,7 @@ export function CounterfactualConfigForm({
                       </span>
                       <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded border font-mono ${
                         frozen
-                          ? 'text-blue-400/60 border-blue-400/20 bg-blue-400/5'
+                          ? 'text-blue-500 border-blue-400/60 bg-blue-400/5'
                           : 'text-muted-foreground border-border bg-muted/50'
                       }`}>
                         {meta.type}
